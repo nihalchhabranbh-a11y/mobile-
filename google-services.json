@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "615010907583",
+    "project_id": "sell-and-manage",
+    "storage_bucket": "sell-and-manage.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615010907583:android:c3b9d30430343d11051d0a",
+        "android_client_info": {
+          "package_name": "com.shiromaniprinters.printmaster"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhkj1kCW4i-J4_Cmun4HD6HRdE9SPCRWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615010907583:android:00ee32949dc6266d051d0a",
+        "android_client_info": {
+          "package_name": "expo.android.package"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhkj1kCW4i-J4_Cmun4HD6HRdE9SPCRWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
