@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type EInvoice = {
   id: string;
@@ -16,7 +17,7 @@ export async function fetchEInvoices(orgId?: string | null): Promise<EInvoice[]>
     .from("e_invoice_logs")
     .select("*")
     .order("created_at", { ascending: false });
-  if (orgId) q = q.eq("organisation_id", orgId);
+  q = q.eq("organisation_id", requireOrgId(orgId));
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(mapEInvoice);
@@ -35,7 +36,7 @@ export async function generateEInvoice(
   const { data, error } = await supabase
     .from("e_invoice_logs")
     .insert({
-      organisation_id: orgId ?? null,
+      organisation_id: requireOrgId(orgId),
       bill_id: billId,
       irn,
       ack_number: ackNumber,
@@ -49,11 +50,12 @@ export async function generateEInvoice(
   return mapEInvoice(data);
 }
 
-export async function cancelEInvoice(id: string): Promise<void> {
+export async function cancelEInvoice(id: string, orgId?: string): Promise<void> {
   const { error } = await supabase
     .from("e_invoice_logs")
     .update({ status: "Cancelled" })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("organisation_id", requireOrgId(orgId));
   if (error) throw error;
 }
 

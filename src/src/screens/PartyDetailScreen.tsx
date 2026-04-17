@@ -378,7 +378,7 @@ export const PartyDetailScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              if (selected) await (deleteCustomer as any)(selected.customer.id);
+              if (selected) await deleteCustomer(selected.customer.id, user?.organisationId);
               setSelectedId(null);
               load();
             } catch (e) {

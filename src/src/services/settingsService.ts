@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Brand = {
   shopName: string | null;
@@ -41,9 +42,13 @@ const DEFAULT_BRAND: Brand = {
 export async function loadBrand(
   organisationId?: string | null
 ): Promise<Brand> {
-  let query = supabase.from("settings").select("*");
-  if (organisationId) query = query.eq("organisation_id", organisationId);
-  const { data, error } = await query.limit(1).maybeSingle();
+  const orgId = requireOrgId(organisationId);
+  const { data, error } = await supabase
+    .from("settings")
+    .select("*")
+    .eq("organisation_id", orgId)
+    .limit(1)
+    .maybeSingle();
   if (error) {
     console.error("[settings] loadBrand:", error.message);
     return DEFAULT_BRAND;
@@ -75,8 +80,9 @@ export async function saveBrand(
   brand: Partial<Brand>,
   organisationId?: string | null
 ): Promise<void> {
+  const orgId = requireOrgId(organisationId);
   const payload: Record<string, unknown> = {};
-  
+
   if ("shopName" in brand) payload.shop_name = brand.shopName;
   if ("address" in brand) payload.address = brand.address;
   if ("phone" in brand) payload.phone = brand.phone;
@@ -95,32 +101,23 @@ export async function saveBrand(
   if ("thermalPaperMm" in brand) payload.thermal_paper_mm = brand.thermalPaperMm;
 
   if (Object.keys(payload).length === 0) return; // Nothing to update
-  
-  if (organisationId) payload.organisation_id = organisationId;
 
-  let existingId: string | null = null;
-  if (organisationId) {
-    const { data: existing } = await supabase
-      .from("settings")
-      .select("id")
-      .eq("organisation_id", organisationId)
-      .limit(1)
-      .maybeSingle();
-    existingId = existing?.id ?? null;
-  } else {
-    const { data: first } = await supabase
-      .from("settings")
-      .select("id")
-      .limit(1)
-      .maybeSingle();
-    existingId = first?.id ?? null;
-  }
+  payload.organisation_id = orgId;
+
+  const { data: existing } = await supabase
+    .from("settings")
+    .select("id")
+    .eq("organisation_id", orgId)
+    .limit(1)
+    .maybeSingle();
+  const existingId = existing?.id ?? null;
 
   if (existingId) {
     const { error } = await supabase
       .from("settings")
       .update(payload)
-      .eq("id", existingId);
+      .eq("id", existingId)
+      .eq("organisation_id", orgId);
     if (error) console.error("[settings] saveBrand update:", error.message);
   } else {
     const { error } = await supabase.from("settings").insert([payload]);

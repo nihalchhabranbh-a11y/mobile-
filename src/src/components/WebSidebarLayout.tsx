@@ -149,7 +149,7 @@ export const WebSidebarLayout: React.FC<{ children: React.ReactNode }> = ({ chil
         <View style={S.topSection}>
           <View style={S.logoContainer}>
             <Ionicons name="pricetags" size={26} color="#ea580c" />
-            <Text style={S.logoText}>PrintMaster</Text>
+            <Text style={S.logoText}>Business Manager</Text>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>

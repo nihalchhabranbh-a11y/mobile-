@@ -142,6 +142,7 @@ export const ItemsScreen: React.FC = () => {
           purchasePrice: Number(purchasePrice) || 0,
           openingStock: Number(openingStock) || 0,
           active,
+          organisationId: user?.organisationId ?? undefined,
         });
         setProducts((prev) =>
           prev.map((p) =>
@@ -196,8 +197,8 @@ export const ItemsScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteProduct(p.id);
-              setProducts((prev) => prev.filter((x) => x.id !== p.id));
+              await deleteProduct(p.id, user?.organisationId ?? undefined);
+              setProducts((prev) => prev.filter((item) => item.id !== p.id));
             } catch (e) {
               Alert.alert("Error", "Failed to delete item.");
             }

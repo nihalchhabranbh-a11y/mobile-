@@ -345,7 +345,7 @@ export const MoreScreen: React.FC = () => {
         <TouchableOpacity style={S.watermarkBanner} onPress={() => navigation.navigate("Subscription")} activeOpacity={0.85}>
           <MaterialCommunityIcons name="crown" size={24} color="#FEF9C3" />
           <View style={{ flex: 1 }}>
-            <Text style={S.watermarkTitle}>⚡ Upgrade to PrintMaster Pro</Text>
+            <Text style={S.watermarkTitle}>⚡ Upgrade to Business Manager Pro</Text>
             <Text style={S.watermarkSubtitle}>Pay via UPI — Activate Instantly</Text>
           </View>
           <Ionicons name="arrow-forward-circle" size={22} color="rgba(255,255,255,0.9)" />

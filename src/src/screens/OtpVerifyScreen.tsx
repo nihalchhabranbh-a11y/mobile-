@@ -76,6 +76,10 @@ export const OtpVerifyScreen: React.FC = () => {
           setError("❌ No account found for this number. Please register first.");
           return;
         }
+        if (!found.organisationId) {
+          setError("❌ Account is not linked to any organisation. Please contact support.");
+          return;
+        }
         setInfoMsg("✅ Welcome back! Logging you in…");
         await new Promise((r) => setTimeout(r, 600));
         setUser({ ...found, phone: params.phone, phoneVerified: true });
@@ -89,6 +93,10 @@ export const OtpVerifyScreen: React.FC = () => {
       if (params.mode === "register") {
         const existing = await findUserByPhone(params.phone);
         if (existing) {
+          if (!existing.organisationId) {
+            setError("❌ Account is not linked to any organisation. Please contact support.");
+            return;
+          }
           // Account already exists — log them in, don't create duplicate
           setInfoMsg("✅ Account found! Logging you in…");
           await new Promise((r) => setTimeout(r, 700));
@@ -100,6 +108,10 @@ export const OtpVerifyScreen: React.FC = () => {
         }
         // Brand new number — create isolated account
         const newUser = await registerUserByPhone(params.phone, params.payload);
+        if (!newUser.organisationId) {
+          setError("❌ Organisation creation failed. Please contact support.");
+          return;
+        }
         setUser({ ...newUser, phone: params.phone, phoneVerified: true });
         setTimeout(() => {
           navigation.reset({ index: 0, routes: [{ name: "Main" as never }] });
@@ -107,9 +119,9 @@ export const OtpVerifyScreen: React.FC = () => {
         }, 400);
         return;
       }
-    } catch (e) {
-      console.warn("[OTP] verify failed", e);
-      setError("Something went wrong. Please try again.");
+    } catch (e: any) {
+      console.error("[OTP] verify failed", e);
+      setError(`Auth failed: ${e?.message || "Something went wrong. Please try again."}`);
     } finally {
       setLoading(false);
     }

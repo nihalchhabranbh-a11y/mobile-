@@ -317,7 +317,7 @@ export const RegisterScreen: React.FC = () => {
             gst: gst.trim(),
             logoUrl: "",
             password,
-            plan: plan === "launch" ? "monthly" : "yearly",
+            plan: plan === "launch" ? "pro" : "premium",
           },
         });
       } catch {

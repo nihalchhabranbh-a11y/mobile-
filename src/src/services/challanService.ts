@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Challan = {
   id: string;
@@ -24,7 +25,7 @@ export async function fetchChallans(orgId?: string | null): Promise<Challan[]> {
     .from("challans")
     .select("*")
     .order("created_at", { ascending: false });
-  if (orgId) q = q.eq("organisation_id", orgId);
+  q = q.eq("organisation_id", requireOrgId(orgId));
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(mapChallan);
@@ -36,7 +37,7 @@ export async function createChallan(
   const { data, error } = await supabase
     .from("challans")
     .insert({
-      organisation_id: c.organisationId ?? null,
+      organisation_id: requireOrgId(c.organisationId),
       customer: c.customer,
       phone: c.phone ?? null,
       items: JSON.stringify(c.items),
@@ -53,17 +54,19 @@ export async function createChallan(
 
 export async function updateChallanStatus(
   id: string,
-  status: Challan["status"]
+  status: Challan["status"],
+  orgId?: string
 ): Promise<void> {
   const { error } = await supabase
     .from("challans")
     .update({ status })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("organisation_id", requireOrgId(orgId));
   if (error) throw error;
 }
 
-export async function deleteChallan(id: string): Promise<void> {
-  const { error } = await supabase.from("challans").delete().eq("id", id);
+export async function deleteChallan(id: string, orgId?: string): Promise<void> {
+  const { error } = await supabase.from("challans").delete().eq("id", id).eq("organisation_id", requireOrgId(orgId));
   if (error) throw error;
 }
 

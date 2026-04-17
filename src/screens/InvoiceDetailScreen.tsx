@@ -65,8 +65,8 @@ export function InvoiceDetailScreen() {
     try {
       setLoading(true);
       const [b, p, sig, att] = await Promise.all([
-        fetchBillById(billId),
-        fetchBillPayments(),
+        fetchBillById(billId, user?.organisationId),
+        fetchBillPayments(user?.organisationId),
         AsyncStorage.getItem(`invoice_signature_${billId}`),
         AsyncStorage.getItem(`invoice_attachment_${billId}`),
       ]);
@@ -93,7 +93,7 @@ export function InvoiceDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteBill(billId);
+            await deleteBill(billId, user?.organisationId);
             navigation.goBack();
           } catch (e: any) {
             Alert.alert("Error", e.message || "Failed");

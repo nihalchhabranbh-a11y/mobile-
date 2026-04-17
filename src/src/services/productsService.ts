@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Product = {
   id: string;
@@ -33,7 +34,7 @@ export async function getProducts(organisationId?: string): Promise<Product[]> {
     .from("products")
     .select("*")
     .order("created_at", { ascending: false });
-  if (organisationId) query = query.eq("organisation_id", organisationId);
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) {
     console.error("[products] getProducts:", error.message);
@@ -69,11 +70,8 @@ export async function createProductQuick(payload: NewProductPayload) {
     unit: payload.unit ?? null,
     hsn_code: payload.hsnCode ?? null,
     active: true,
+    organisation_id: requireOrgId(payload.organisationId),
   };
-
-  if (payload.organisationId) {
-    row.organisation_id = payload.organisationId;
-  }
 
   const { data, error } = await supabase
     .from("products")
@@ -121,8 +119,8 @@ export async function addProduct(product: {
     description: product.description ?? null,
     keywords: product.keywords ?? null,
     active: product.active !== false,
+    organisation_id: requireOrgId(product.organisationId),
   };
-  if (product.organisationId) row.organisation_id = product.organisationId;
 
   const { data, error } = await supabase
     .from("products")
@@ -171,6 +169,7 @@ export async function updateProduct(
     description?: string | null;
     keywords?: string | null;
     active?: boolean;
+    organisationId?: string;
   }
 ): Promise<void> {
   const payload: any = {};
@@ -189,12 +188,12 @@ export async function updateProduct(
   if (updates.keywords !== undefined) payload.keywords = updates.keywords ?? null;
   if (updates.active !== undefined) payload.active = updates.active;
   if (Object.keys(payload).length === 0) return;
-  const { error } = await supabase.from("products").update(payload).eq("id", id);
+  const { error } = await supabase.from("products").update(payload).eq("id", id).eq("organisation_id", requireOrgId(updates.organisationId));
   if (error) console.error("[products] updateProduct:", error.message);
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  const { error } = await supabase.from("products").delete().eq("id", id);
+export async function deleteProduct(id: string, orgId?: string | null): Promise<void> {
+  const { error } = await supabase.from("products").delete().eq("id", id).eq("organisation_id", requireOrgId(orgId));
   if (error) console.error("[products] deleteProduct:", error.message);
 }
 

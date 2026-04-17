@@ -106,7 +106,7 @@ export const AiOrderScreen: React.FC = () => {
         if (!messagesLoaded) {
           setMessages(saved && saved.length > 0 ? saved : [{
             id: "welcome", role: "agent", time: nowTime(),
-            text: `🤖 PrintMaster AI ready! Tap the mic or type naturally.
+            text: `🤖 Business AI ready! Tap the mic or type naturally.
 
 Type "help" to see who you haven't billed recently + weekly digest.`,
           }]);

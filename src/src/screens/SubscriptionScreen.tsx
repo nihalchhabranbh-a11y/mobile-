@@ -62,7 +62,7 @@ export const SubscriptionScreen: React.FC = () => {
     setActivePlan({ name: planName, price: amount, color });
     
     // Direct UPI Deep Link Formula
-    const upiUrl = `upi://pay?pa=7073164253-2@ybl&pn=PrintMaster&am=${amount}&cu=INR&tn=UpgradeTo${planName.replace(/\s+/g, '')}`;
+    const upiUrl = `upi://pay?pa=7073164253-2@ybl&pn=Business&am=${amount}&cu=INR&tn=UpgradeTo${planName.replace(/\s+/g, '')}`;
     
     try {
       if (Platform.OS === 'android' || Platform.OS === 'ios') {
@@ -199,7 +199,7 @@ export const SubscriptionScreen: React.FC = () => {
               </Text>
               <Image
                 source={{
-                  uri: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=7073164253-2@ybl%26pn=PrintMaster%26am=${plan.price}%26cu=INR`,
+                  uri: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=7073164253-2@ybl%26pn=Business%26am=${plan.price}%26cu=INR`,
                 }}
                 style={styles.qrImage}
               />

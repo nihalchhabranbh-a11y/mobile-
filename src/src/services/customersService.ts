@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Customer = {
   id: string;
@@ -22,11 +23,12 @@ export type NewCustomerPayload = {
 };
 
 export async function getCustomers(organisationId?: string): Promise<Customer[]> {
+  const orgId = requireOrgId(organisationId);
   let query = supabase
     .from("customers")
     .select("*")
+    .eq("organisation_id", orgId)
     .order("created_at", { ascending: false });
-  if (organisationId) query = query.eq("organisation_id", organisationId);
   const { data, error } = await query;
   if (error) {
     console.error("[customers] getCustomers:", error.message);
@@ -48,16 +50,14 @@ export async function getCustomers(organisationId?: string): Promise<Customer[]>
 }
 
 export async function createCustomerQuick(payload: NewCustomerPayload) {
+  const orgId = requireOrgId(payload.organisationId);
   const row: any = {
     name: payload.name,
     phone: payload.phone ?? null,
     email: payload.email ?? null,
     party_type: "customer",
+    organisation_id: orgId,
   };
-
-  if (payload.organisationId) {
-    row.organisation_id = payload.organisationId;
-  }
 
   const { data, error } = await supabase
     .from("customers")
@@ -84,6 +84,7 @@ export async function addCustomer(customer: {
   state?: string | null;
   notes?: string | null;
 }): Promise<Customer | null> {
+  const orgId = requireOrgId(customer.organisationId);
   const row: any = {
     name: customer.name,
     phone: customer.phone ?? null,
@@ -94,8 +95,8 @@ export async function addCustomer(customer: {
     billing_address: customer.billingAddress ?? null,
     state: customer.state ?? null,
     notes: customer.notes ?? null,
+    organisation_id: orgId,
   };
-  if (customer.organisationId) row.organisation_id = customer.organisationId;
 
   const { data, error } = await supabase
     .from("customers")
@@ -133,8 +134,10 @@ export async function updateCustomer(
     billingAddress?: string | null;
     state?: string | null;
     notes?: string | null;
-  }
+  },
+  orgId?: string | null
 ): Promise<void> {
+  const validOrgId = requireOrgId(orgId);
   const payload: any = {};
   if (updates.name !== undefined) payload.name = updates.name;
   if (updates.phone !== undefined) payload.phone = updates.phone ?? null;
@@ -145,12 +148,21 @@ export async function updateCustomer(
   if (updates.state !== undefined) payload.state = updates.state ?? null;
   if (updates.notes !== undefined) payload.notes = updates.notes ?? null;
   if (Object.keys(payload).length === 0) return;
-  const { error } = await supabase.from("customers").update(payload).eq("id", id);
+  const { error } = await supabase
+    .from("customers")
+    .update(payload)
+    .eq("id", id)
+    .eq("organisation_id", validOrgId);
   if (error) console.error("[customers] updateCustomer:", error.message);
 }
 
-export async function deleteCustomer(id: string): Promise<void> {
-  const { error } = await supabase.from("customers").delete().eq("id", id);
+export async function deleteCustomer(id: string, orgId?: string | null): Promise<void> {
+  const validOrgId = requireOrgId(orgId);
+  const { error } = await supabase
+    .from("customers")
+    .delete()
+    .eq("id", id)
+    .eq("organisation_id", validOrgId);
   if (error) {
     console.error("[customers] deleteCustomer:", error.message);
     throw error;

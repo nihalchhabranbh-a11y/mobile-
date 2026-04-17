@@ -58,7 +58,7 @@ export const TransfersScreen: React.FC = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
         try {
-          await deleteTransfer(id);
+          await deleteTransfer(id, user?.organisationId ?? undefined);
           setTransfers((prev) => prev.filter(t => t.id !== id));
         } catch (e) {
           Alert.alert("Error", "Failed to delete transfer");

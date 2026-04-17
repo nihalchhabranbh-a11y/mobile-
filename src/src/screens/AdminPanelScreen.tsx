@@ -30,7 +30,7 @@ export const AdminPanelScreen: React.FC = () => {
     try {
       setLoading(true);
       const [b, t, w, v] = await Promise.all([
-        fetchBills(),
+        fetchBills(user?.organisationId || undefined),
         getTasks(),
         getWorkers(),
         getVendors(),
@@ -44,7 +44,7 @@ export const AdminPanelScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.organisationId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

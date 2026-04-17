@@ -77,7 +77,7 @@ export const ChallansScreen: React.FC = () => {
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: async () => {
         try {
-          await deleteChallan(id);
+          await deleteChallan(id, user?.organisationId ?? undefined);
           setChallans((prev) => prev.filter(c => c.id !== id));
         } catch (e) {
           Alert.alert("Error", "Failed to delete challan");
@@ -88,7 +88,7 @@ export const ChallansScreen: React.FC = () => {
   const handleCycleStatus = async (challan: Challan) => {
     const nextStatus = challan.status === "Draft" ? "Sent" : challan.status === "Sent" ? "Delivered" : "Draft";
     try {
-      await updateChallanStatus(challan.id, nextStatus);
+      await updateChallanStatus(challan.id, nextStatus, user?.organisationId ?? undefined);
       setChallans((prev) => prev.map((c) => c.id === challan.id ? { ...c, status: nextStatus } : c));
     } catch {
       Alert.alert("Error", "Failed to update challan status.");

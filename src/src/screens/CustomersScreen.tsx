@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useTheme } from "../themeContext";
 import { useFocusEffect } from "@react-navigation/native";
+import { useUser } from "../userContext";
 import {
   Customer,
   getCustomers,
@@ -26,6 +27,7 @@ export const CustomersScreen: React.FC = () => {
     () => createStyles({ colors, spacing, radius }),
     [colors, spacing, radius]
   );
+  const { user } = useUser();
   const [loading, setLoading] = useState(true);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,7 +43,7 @@ export const CustomersScreen: React.FC = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const list = await getCustomers();
+      const list = await getCustomers(user?.organisationId);
       setCustomers(list);
     } catch (e) {
       console.warn("[Customers] load failed", e);
@@ -99,7 +101,7 @@ export const CustomersScreen: React.FC = () => {
           email: email.trim() || null,
           gstin: gstin.trim() || null,
           openingBalance: Number(openingBalance) || 0,
-        });
+        }, user?.organisationId);
         setCustomers((prev) =>
           prev.map((c) =>
             c.id === editing.id
@@ -121,6 +123,7 @@ export const CustomersScreen: React.FC = () => {
           email: email.trim() || null,
           gstin: gstin.trim() || null,
           openingBalance: Number(openingBalance) || 0,
+          organisationId: user?.organisationId ?? undefined,
         });
         if (created) setCustomers((prev) => [created, ...prev]);
       }

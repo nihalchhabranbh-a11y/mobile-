@@ -14,7 +14,7 @@ import { useSafeScreen } from "../hooks/useSafeScreen";
 
 const CONTACT_PHONE = "+91 9876543210";
 const CONTACT_WHATSAPP = "919876543210";
-const CONTACT_EMAIL = "support@shiromani.com";
+const CONTACT_EMAIL = "support@yourapp.com";
 
 export const HelpScreen: React.FC = () => {
   const { colors, spacing, radius } = useTheme();
@@ -60,7 +60,7 @@ export const HelpScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
         <Text style={styles.para}>
-          For support with Shiromani billing, invoices, or account, use the contact details above.
+          For support with billing, invoices, or your account, use the contact details above.
         </Text>
       </ScrollView>
     </View>

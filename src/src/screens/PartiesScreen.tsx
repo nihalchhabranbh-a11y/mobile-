@@ -208,7 +208,7 @@ export const PartiesScreen: React.FC = () => {
           billingAddress: address.trim() || null,
           state: stateName.trim() || null,
           notes: notes.trim() || null,
-        });
+        }, user?.organisationId);
         setCustomers((prev) =>
           prev.map((c) =>
             c.id === editing.id
@@ -235,6 +235,7 @@ export const PartiesScreen: React.FC = () => {
           billingAddress: address.trim() || null,
           state: stateName.trim() || null,
           notes: notes.trim() || null,
+          organisationId: user?.organisationId ?? undefined,
         });
         if (created) setCustomers((prev) => [created, ...prev]);
       }

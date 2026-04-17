@@ -17,7 +17,7 @@ import { fetchBills, fetchBillPayments, RecentBill, BillPayment } from "../servi
 import { getBillPaymentInfo } from "../utils/billingUtils";
 import { useFocusEffect } from "@react-navigation/native";
 
-const WEB_APP_URL = "https://www.shiromani.xyz";
+const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_URL || "https://www.yourapp.com";
 
 export const ReportsScreen: React.FC = () => {
   const { colors, spacing, radius } = useTheme();

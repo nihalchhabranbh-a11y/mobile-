@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 import { createProductQuick, getProducts, Product } from "./productsService";
 
 export type Vendor = {
@@ -57,7 +58,7 @@ export async function upsertVendorByName(params: {
   if (!name) throw new Error("Vendor name required");
 
   let query = supabase.from("vendors").select("*").ilike("name", name).limit(1);
-  if (params.organisationId) query = query.eq("organisation_id", params.organisationId);
+  query = query.eq("organisation_id", requireOrgId(params.organisationId));
   const { data: existing, error: selErr } = await query;
 
   if (selErr) console.warn("[vendors] select failed", selErr.message);
@@ -65,8 +66,7 @@ export async function upsertVendorByName(params: {
   const row = Array.isArray(existing) && existing.length ? (existing[0] as any) : null;
   if (row) return row as Vendor;
 
-  const ins: any = { name };
-  if (params.organisationId) ins.organisation_id = params.organisationId;
+  const ins: any = { name, organisation_id: requireOrgId(params.organisationId) };
   const { data, error } = await supabase.from("vendors").insert([ins]).select("*").single();
   if (error) throw error;
   return data as Vendor;
@@ -130,7 +130,7 @@ export async function createPurchase(params: {
     subtotal: params.subtotal, gst_total: params.gstTotal, total: params.total,
     items: params.items,
   };
-  if (params.organisationId) row.organisation_id = params.organisationId;
+  row.organisation_id = requireOrgId(params.organisationId);
 
   const { data, error } = await supabase.from("purchases").insert([row]).select("*").single();
   if (error) throw error;
@@ -139,7 +139,7 @@ export async function createPurchase(params: {
 
 export async function fetchPurchases(organisationId?: string): Promise<Purchase[]> {
   let query = supabase.from("purchases").select("*").order("created_at", { ascending: false });
-  if (organisationId) query = query.eq("organisation_id", organisationId);
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) { console.error("[purchases] fetchPurchases:", error.message); return []; }
   return (data || []) as Purchase[];

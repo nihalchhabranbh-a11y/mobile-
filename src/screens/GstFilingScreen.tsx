@@ -228,7 +228,7 @@ export function GstFilingScreen() {
                 <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
                 <Text style={styles.actionBtnTxt}>File on GST Portal</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: card, borderWidth: 1, borderColor: dark ? "#2A2A3C" : "#E5E7EB" }]} onPress={() => Alert.alert("Export", `JSON / Excel export for ${period.label} will be available in the next update.\n\nUse the web app (shiromani.xyz) for full export today.`)}>
+              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: card, borderWidth: 1, borderColor: dark ? "#2A2A3C" : "#E5E7EB" }]} onPress={() => Alert.alert("Export", `JSON / Excel export for ${period.label} will be available in the next update.\n\nUse the web app for full export today.`)}>
                 <Ionicons name="download-outline" size={18} color={txt} />
                 <Text style={[styles.actionBtnTxt, { color: txt }]}>Download JSON / Excel</Text>
               </TouchableOpacity>

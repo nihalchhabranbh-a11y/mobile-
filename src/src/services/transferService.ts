@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Transfer = {
   id: string;
@@ -22,7 +23,7 @@ export async function fetchTransfers(orgId?: string | null): Promise<Transfer[]>
     .from("inventory_transfers")
     .select("*")
     .order("created_at", { ascending: false });
-  if (orgId) q = q.eq("organisation_id", orgId);
+  q = q.eq("organisation_id", requireOrgId(orgId));
   const { data, error } = await q;
   if (error) throw error;
   return (data ?? []).map(mapTransfer);
@@ -34,7 +35,7 @@ export async function createTransfer(
   const { data, error } = await supabase
     .from("inventory_transfers")
     .insert({
-      organisation_id: t.organisationId ?? null,
+      organisation_id: requireOrgId(t.organisationId),
       from_location: t.from_location,
       to_location: t.to_location,
       items: JSON.stringify(t.items),
@@ -49,17 +50,19 @@ export async function createTransfer(
 
 export async function updateTransferStatus(
   id: string,
-  status: Transfer["status"]
+  status: Transfer["status"],
+  orgId?: string
 ): Promise<void> {
   const { error } = await supabase
     .from("inventory_transfers")
     .update({ status })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("organisation_id", requireOrgId(orgId));
   if (error) throw error;
 }
 
-export async function deleteTransfer(id: string): Promise<void> {
-  const { error } = await supabase.from("inventory_transfers").delete().eq("id", id);
+export async function deleteTransfer(id: string, orgId?: string): Promise<void> {
+  const { error } = await supabase.from("inventory_transfers").delete().eq("id", id).eq("organisation_id", requireOrgId(orgId));
   if (error) throw error;
 }
 

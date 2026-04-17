@@ -72,7 +72,7 @@ export const InvoiceCreateScreen: React.FC = () => {
       setCustomers(custs);
 
       if (editBillId) {
-        const bill = await fetchBillById(editBillId);
+        const bill = await fetchBillById(editBillId, org);
         if (bill) {
           setCustomerName(bill.customer);
           setCustomerPhone(bill.phone ?? "");

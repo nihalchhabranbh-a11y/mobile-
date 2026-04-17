@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type BillingCustomer = {
   id: string;
@@ -61,16 +62,12 @@ export type RecentBill = {
 };
 
 export async function fetchCustomers(organisationId?: string): Promise<BillingCustomer[]> {
-  let query = supabase
+  const orgId = requireOrgId(organisationId);
+  const { data, error } = await supabase
     .from("customers")
     .select("id, name, phone")
+    .eq("organisation_id", orgId)
     .order("created_at", { ascending: false });
-
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("[billing] fetchCustomers:", error.message);
@@ -81,18 +78,14 @@ export async function fetchCustomers(organisationId?: string): Promise<BillingCu
 }
 
 export async function fetchProducts(organisationId?: string): Promise<BillingProduct[]> {
-  let query = supabase
+  const orgId = requireOrgId(organisationId);
+  const { data, error } = await supabase
     .from("products")
     .select(
       "id, name, category, item_code, hsn_code, unit, default_rate, tax_rate, active, description"
     )
+    .eq("organisation_id", orgId)
     .order("created_at", { ascending: false });
-
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("[billing] fetchProducts:", error.message);
@@ -134,7 +127,7 @@ export async function createBill(payload: NewBillPayload) {
   if (payload.notes) row.notes = payload.notes;
   if (payload.status) row.status = payload.status;
   if ((payload as any).docType) row.doc_type = (payload as any).docType;
-  if (payload.organisationId) row.organisation_id = payload.organisationId;
+  row.organisation_id = requireOrgId(payload.organisationId);
   if (payload.items && payload.items.length > 0) {
     row.items = payload.items;
   }
@@ -173,7 +166,7 @@ export async function updateBill(id: string, payload: NewBillPayload) {
   if (payload.dueDate) row.due_date = payload.dueDate;
   if (payload.notes) row.notes = payload.notes;
   if (payload.status) row.status = payload.status;
-  if (payload.organisationId) row.organisation_id = payload.organisationId;
+  row.organisation_id = requireOrgId(payload.organisationId);
   if (payload.items && payload.items.length > 0) {
     row.items = payload.items;
   }
@@ -182,6 +175,7 @@ export async function updateBill(id: string, payload: NewBillPayload) {
     .from("bills")
     .update(row)
     .eq("id", id)
+    .eq("organisation_id", requireOrgId(payload.organisationId))
     .select()
     .single();
 
@@ -205,16 +199,12 @@ export type BillPayment = {
 };
 
 export async function fetchBills(organisationId?: string): Promise<RecentBill[]> {
-  let query = supabase
+  const orgId = requireOrgId(organisationId);
+  const { data, error } = await supabase
     .from("bills")
     .select("id, customer, phone, total, created_at, paid, gst, status, doc_type, items")
+    .eq("organisation_id", orgId)
     .order("created_at", { ascending: false });
-
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("[billing] fetchBills:", error.message);
@@ -249,16 +239,12 @@ export async function fetchRecentBills(
 }
 
 export async function fetchBillPayments(organisationId?: string): Promise<BillPayment[]> {
-  let query = supabase
+  const orgId = requireOrgId(organisationId);
+  const { data, error } = await supabase
     .from("bill_payments")
     .select("id, bill_id, amount, method, paid_at")
+    .eq("organisation_id", orgId)
     .order("paid_at", { ascending: false });
-
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("[billing] fetchBillPayments:", error.message);
@@ -288,7 +274,7 @@ export async function addBillPayment(payment: {
     amount: payment.amount,
     note: payment.note ?? null,
   };
-  if (payment.organisationId) row.organisation_id = payment.organisationId;
+  row.organisation_id = requireOrgId(payment.organisationId);
 
   const { data, error } = await supabase
     .from("bill_payments")
@@ -303,8 +289,13 @@ export async function addBillPayment(payment: {
   return { ...data, billId: data.bill_id, paidAt: data.paid_at } as BillPayment;
 }
 
-export async function deleteBill(id: string) {
-  const { error } = await supabase.from("bills").delete().eq("id", id);
+export async function deleteBill(id: string, orgId?: string | null) {
+  const validOrgId = requireOrgId(orgId);
+  const { error } = await supabase
+    .from("bills")
+    .delete()
+    .eq("id", id)
+    .eq("organisation_id", validOrgId);
   if (error) {
     console.error("[billing] deleteBill:", error.message);
     throw error;
@@ -319,11 +310,13 @@ export type BillWithItems = RecentBill & {
   notes?: string | null;
 };
 
-export async function fetchBillById(id: string): Promise<BillWithItems | null> {
+export async function fetchBillById(id: string, orgId?: string | null): Promise<BillWithItems | null> {
+  const validOrgId = requireOrgId(orgId);
   const { data, error } = await supabase
     .from("bills")
     .select("*")
     .eq("id", id)
+    .eq("organisation_id", validOrgId)
     .maybeSingle();
   if (error || !data) return null;
   const b = data as any;

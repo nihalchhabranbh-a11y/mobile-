@@ -12,6 +12,7 @@ import {
   Alert,
 } from "react-native";
 import { useTheme } from "../themeContext";
+import { useUser } from "../userContext";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   Product,
@@ -23,6 +24,7 @@ import {
 
 export const ProductsScreen: React.FC = () => {
   const { colors, spacing, radius } = useTheme();
+  const { user } = useUser();
   const styles = useMemo(
     () => createStyles({ colors, spacing, radius }),
     [colors, spacing, radius]
@@ -48,7 +50,7 @@ export const ProductsScreen: React.FC = () => {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const list = await getProducts();
+      const list = await getProducts(user?.organisationId || undefined);
       setProducts(list);
     } catch (e) {
       console.warn("[Products] load failed", e);
@@ -56,7 +58,7 @@ export const ProductsScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.organisationId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -124,6 +126,7 @@ export const ProductsScreen: React.FC = () => {
           description: description.trim() || null,
           keywords: keywords.trim() || null,
           active,
+          organisationId: user?.organisationId ?? undefined,
         });
         setProducts((prev) =>
           prev.map((p) =>
@@ -180,8 +183,8 @@ export const ProductsScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteProduct(p.id);
-              setProducts((prev) => prev.filter((x) => x.id !== p.id));
+              await deleteProduct(p.id, user?.organisationId ?? undefined);
+              setProducts((prev) => prev.filter((item) => item.id !== p.id));
             } catch (e) {
               Alert.alert("Error", "Failed to delete item.");
             }

@@ -515,7 +515,7 @@ export const BillingScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteBill(bill.id);
+              await deleteBill(bill.id, user?.organisationId);
               await loadBillsList();
             } catch (e) {
               console.warn("[Billing] deleteBill failed", e);

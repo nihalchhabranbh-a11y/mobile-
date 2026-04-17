@@ -24,7 +24,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
   };
 
   const amount = isPremiumRequired ? "499" : "99";
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=7073164253-2@ybl%26pn=PrintMaster%26am=${amount}%26cu=INR`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=7073164253-2@ybl%26pn=Business%26am=${amount}%26cu=INR`;
 
   return (
     <Modal visible={visible} transparent={true} animationType="slide" onRequestClose={onClose}>

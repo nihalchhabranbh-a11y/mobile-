@@ -28,7 +28,7 @@ const STEPS: Step[] = [
   {
     icon: "hand-wave",
     iconLib: "mci",
-    title: "Welcome to PrintMaster! 🎉",
+    title: "Welcome to Business Manager! 🎉",
     description:
       "Let's set up your business profile in just 3 steps. It only takes 2 minutes!",
     action: "Let's Go",
@@ -67,7 +67,7 @@ const STEPS: Step[] = [
     title: "Upgrade for More Power ⚡",
     description:
       "You are on the FREE plan. Upgrade to Pro (₹99/mo) to unlock:\n\n• Unlimited Invoices\n• WhatsApp Reminders\n• AI Tools & Reports\n\nPay via UPI in More → Upgrade.",
-    action: "Start Using PrintMaster",
+    action: "Start Using Business Manager",
     actionColor: "#2563EB",
   },
 ];

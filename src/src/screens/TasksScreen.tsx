@@ -161,7 +161,7 @@ export const TasksScreen: React.FC = () => {
 
   const handleStatusChange = async (task: Task, newStatus: string) => {
     try {
-      await updateTaskStatus(task.id, newStatus);
+      await updateTaskStatus(task.id, newStatus, user?.organisationId ?? undefined);
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t))
       );
@@ -181,7 +181,7 @@ export const TasksScreen: React.FC = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteTask(task.id);
+              await deleteTask(task.id, user?.organisationId ?? undefined);
               setTasks((prev) => prev.filter((t) => t.id !== task.id));
             } catch (e) {
               Alert.alert("Error", "Failed to delete task.");

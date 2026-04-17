@@ -1,4 +1,4 @@
-/* ─── Shiromani Printers Premium Orange Design ─── */
+/* ─── Premium Orange Design Base ─── */
 
 export const colors = {
   /* Bright Orange base */

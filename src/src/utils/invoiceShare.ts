@@ -3,7 +3,7 @@ import type { RecentBill, BillPayment } from "../services/billingService";
 import { getBillPaymentInfo } from "./billingUtils";
 
 /** Web app base URL for invoice and payment links (e.g. https://your-app.vercel.app) */
-export const WEB_BASE_URL = "https://printmaster.vercel.app";
+export const WEB_BASE_URL = process.env.EXPO_PUBLIC_WEB_URL || "https://your-web-app.vercel.app";
 
 const DEFAULT_BRAND_NAME = "My Business";
 

@@ -186,7 +186,7 @@ export const WebDashboard: React.FC<WebDashboardProps> = ({
       <View style={S.header}>
         <View>
           <Text style={S.greeting}>Welcome back, {user?.name || "User"} 👋</Text>
-          <Text style={S.brandName}>{brand?.shopName || "PrintMaster System"}</Text>
+          <Text style={S.brandName}>{brand?.shopName || "Business Manager"}</Text>
         </View>
         <View style={S.headerRight}>
           <TouchableOpacity style={S.promoBtn} onPress={() => navigation.navigate("EInvoice")}>

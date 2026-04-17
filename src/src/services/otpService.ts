@@ -38,7 +38,7 @@ export async function requestOtp(phone: string, _purpose: OtpPurpose): Promise<v
 
   try {
     const isWeb = Platform.OS === "web";
-    const messageText = `Your PrintMaster Verification Code is: ${otpCode}. It is valid for 5 minutes.`;
+    const messageText = `Your Verification Code is: ${otpCode}. It is valid for 5 minutes.`;
     const fast2smsUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${FAST2SMS_API_KEY}&route=q&message=${encodeURIComponent(messageText)}&language=english&flash=0&numbers=${digits10}`;
     
     // Bypass CORS restrictions transparently if the user is running this on the Web Dashboard

@@ -1,6 +1,6 @@
 /**
  * InvoiceViewModal.tsx
- * Beautiful professional invoice view — mirrors the web app (shiromani.xyz) style.
+ * Beautiful professional invoice view — mirrors the web app style.
  * Shows as a full-screen modal when user taps "View" on an invoice.
  */
 import React from "react";

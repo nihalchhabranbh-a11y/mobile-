@@ -10,8 +10,8 @@ export type AuthUser = {
   isNewUser?: boolean; // true when account was just created via OTP
 };
 
-const allowedOrg = (org: any) =>
-  org && org.status === "approved" && org.access_enabled !== false;
+const allowedOrg = (org: any, orgId: string | null | undefined) =>
+  !!orgId && org && org.status === "approved" && org.access_enabled !== false;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Password-based login (unchanged — works for existing accounts)
@@ -26,63 +26,96 @@ export async function loginWithCredentials(
 
   // Org admins
   try {
-    const { data } = await supabase
+    const { data: adminData, error: adminErr } = await supabase
       .from("org_admins")
       .select("id, username, password, name, organisation_id, organisations(status, access_enabled)")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
       .maybeSingle();
-    if (data && allowedOrg((data as any).organisations)) {
+
+    if (adminErr) {
+      console.error("DB Error (org_admins login):", adminErr);
+      throw new Error(`Database error: ${adminErr.message}`);
+    }
+
+    if (adminData) {
+      if (!allowedOrg((adminData as any).organisations, (adminData as any).organisation_id)) {
+        throw new Error("Organisation is disabled or not approved.");
+      }
       return {
-        username: (data as any).username,
-        name: (data as any).name || (data as any).username,
+        username: (adminData as any).username,
+        name: (adminData as any).name || (adminData as any).username,
         role: "admin",
-        organisationId: (data as any).organisation_id ?? null,
+        organisationId: (adminData as any).organisation_id,
         organisationPlan: "free",
       };
     }
-  } catch (_) {}
+  } catch (err: any) {
+    throw err;
+  }
 
   // Workers
   try {
-    const { data } = await supabase
+    const { data: workerData, error: workerErr } = await supabase
       .from("workers")
       .select("id, username, password, name, role, organisation_id, organisations(status, access_enabled)")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
       .maybeSingle();
-    if (data && allowedOrg((data as any).organisations)) {
+
+    if (workerErr) {
+      console.error("DB Error (workers login):", workerErr);
+      throw new Error(`Database error: ${workerErr.message}`);
+    }
+
+    if (workerData) {
+      if (!allowedOrg((workerData as any).organisations, (workerData as any).organisation_id)) {
+        throw new Error("Organisation is disabled or not approved.");
+      }
       return {
-        username: (data as any).username,
-        name: (data as any).name || (data as any).username,
-        role: ((data as any).role as "admin" | "worker") || "worker",
-        organisationId: (data as any).organisation_id ?? null,
+        username: (workerData as any).username,
+        name: (workerData as any).name || (workerData as any).username,
+        role: ((workerData as any).role as "admin" | "worker") || "worker",
+        organisationId: (workerData as any).organisation_id,
         organisationPlan: "free",
       };
     }
-  } catch (_) {}
+  } catch (err: any) {
+    throw err;
+  }
 
   // Vendors
   try {
-    const { data } = await supabase
+    const { data: vendorData, error: vendorErr } = await supabase
       .from("vendors")
       .select("id, username, password, name, firm_name, organisation_id, organisations(status, access_enabled)")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
       .maybeSingle();
-    if (data && allowedOrg((data as any).organisations)) {
+
+    if (vendorErr) {
+      console.error("DB Error (vendors login):", vendorErr);
+      throw new Error(`Database error: ${vendorErr.message}`);
+    }
+
+    if (vendorData) {
+      if (!allowedOrg((vendorData as any).organisations, (vendorData as any).organisation_id)) {
+        throw new Error("Organisation is disabled or not approved.");
+      }
       return {
-        username: (data as any).username,
-        name: (data as any).name || (data as any).firm_name || (data as any).username,
+        username: (vendorData as any).username,
+        name: (vendorData as any).name || (vendorData as any).firm_name || (vendorData as any).username,
         role: "worker",
-        organisationId: (data as any).organisation_id ?? null,
+        organisationId: (vendorData as any).organisation_id,
         organisationPlan: "free",
       };
     }
-  } catch (_) {}
+  } catch (err: any) {
+    throw err;
+  }
 
   return null;
 }
@@ -96,47 +129,67 @@ export async function findUserByPhone(phone: string): Promise<AuthUser | null> {
 
   // Check org_admins
   try {
-    const { data } = await supabase
+    const { data: adminData, error: adminErr } = await supabase
       .from("org_admins")
       .select("id, username, name, organisation_id, phone, subscription_tier")
       .ilike("phone", `%${digits10}%`)
       .limit(1)
       .maybeSingle();
 
-    if (data) {
+    if (adminErr) {
+      console.error("DB Error (org_admins phone search):", adminErr);
+      throw new Error(`Database error: ${adminErr.message}`);
+    }
+
+    if (adminData) {
+      if (!adminData.organisation_id) {
+        throw new Error("Account not linked to any organisation.");
+      }
       return {
-        username: (data as any).username,
-        name: (data as any).name || (data as any).username,
+        username: (adminData as any).username,
+        name: (adminData as any).name || (adminData as any).username,
         role: "admin",
-        organisationId: (data as any).organisation_id ?? null,
-        organisationPlan: ((data as any).subscription_tier as any) ?? "free",
+        organisationId: adminData.organisation_id,
+        organisationPlan: ((adminData as any).subscription_tier as any) ?? "free",
         phone,
         isNewUser: false,
       };
     }
-  } catch (_) {}
+  } catch (err: any) {
+    throw err;
+  }
 
   // Check workers
   try {
-    const { data } = await supabase
+    const { data: workerData, error: workerErr } = await supabase
       .from("workers")
       .select("id, username, name, role, organisation_id, phone")
       .ilike("phone", `%${digits10}%`)
       .limit(1)
       .maybeSingle();
 
-    if (data) {
+    if (workerErr) {
+      console.error("DB Error (workers phone search):", workerErr);
+      throw new Error(`Database error: ${workerErr.message}`);
+    }
+
+    if (workerData) {
+      if (!workerData.organisation_id) {
+        throw new Error("Account not linked to any organisation.");
+      }
       return {
-        username: (data as any).username,
-        name: (data as any).name || (data as any).username,
-        role: ((data as any).role as "admin" | "worker") || "worker",
-        organisationId: (data as any).organisation_id ?? null,
+        username: (workerData as any).username,
+        name: (workerData as any).name || (workerData as any).username,
+        role: ((workerData as any).role as "admin" | "worker") || "worker",
+        organisationId: workerData.organisation_id,
         organisationPlan: "free",
         phone,
         isNewUser: false,
       };
     }
-  } catch (_) {}
+  } catch (err: any) {
+    throw err;
+  }
 
   return null; // ← Account NOT found — caller shows "No account found. Please register."
 }
@@ -155,70 +208,63 @@ export async function registerUserByPhone(phone: string, payload?: any): Promise
   }
 
   // Create a new isolated organisation for this user
-  let organisationId: string | null = null;
-  try {
-    const { data: newOrg, error: orgError } = await supabase
-      .from("organisations")
-      .insert({
-        name: payload?.orgName || `${digits10}'s Business`,
-        status: "approved",
-        access_enabled: true,
-      })
-      .select("id")
-      .single();
+  const { data: newOrg, error: orgError } = await supabase
+    .from("organisations")
+    .insert({
+      name: payload?.orgName || `${digits10}'s Business`,
+      status: "approved",
+      access_enabled: true,
+    })
+    .select("id")
+    .single();
 
-    if (!orgError && newOrg) {
-      organisationId = (newOrg as any).id;
-    }
-  } catch (_) {}
+  if (orgError || !newOrg) {
+    console.error("Failed to create organisation:", orgError);
+    throw new Error(`Organisation creation failed: ${orgError?.message || 'Unknown error'}`);
+  }
+  
+  const organisationId = (newOrg as any).id;
 
   // Create the org_admin linked to the new org
-  try {
-    const { data: created, error } = await supabase
-      .from("org_admins")
-      .insert({
-        username: payload?.email || digits10,
-        name: payload?.orgName || digits10,
-        phone: digits10,
-        password: payload?.password || digits10,
-        ...(organisationId ? { organisation_id: organisationId } : {}),
-      })
-      .select("id, username, name, organisation_id")
-      .single();
+  const { data: created, error: adminError } = await supabase
+    .from("org_admins")
+    .insert({
+      username: payload?.email || digits10,
+      name: payload?.orgName || digits10,
+      phone: digits10,
+      password: payload?.password || digits10,
+      organisation_id: organisationId,
+    })
+    .select("id, username, name, organisation_id")
+    .single();
 
-    if (!error && created) {
-      // Seed settings with phone number so it pre-fills
-      if (organisationId) {
-        supabase.from("settings").insert({
-          organisation_id: organisationId,
-          business_name: payload?.brandName || payload?.orgName || "",
-          address: payload?.address || "",
-          gst_number: payload?.gst || "",
-          email: payload?.email || "",
-          phone: digits10,
-          whatsapp: digits10,
-        }).then(() => {});
-      }
+  if (adminError || !created) {
+    console.error(`Orphaned org (ID: ${organisationId}). Admin creation failed.`, adminError);
+    throw new Error(`Admin creation failed: ${adminError?.message || 'Unknown error'}`);
+  }
 
-      return {
-        username: (created as any).username,
-        name: (created as any).name,
-        role: "admin",
-        organisationId: (created as any).organisation_id ?? null,
-        organisationPlan: payload?.plan || "free",
-        phone,
-        isNewUser: true,
-      };
-    }
-  } catch (_) {}
+  // Seed settings with phone number so it pre-fills
+  const { error: settingsError } = await supabase.from("settings").insert({
+    organisation_id: organisationId,
+    business_name: payload?.brandName || payload?.orgName || "",
+    address: payload?.address || "",
+    gst_number: payload?.gst || "",
+    email: payload?.email || "",
+    phone: digits10,
+    whatsapp: digits10,
+  });
 
-  // Fallback — DB failed but still give them a session
+  if (settingsError) {
+    console.error(`Failed to seed settings for org ${organisationId}:`, settingsError);
+    throw new Error(`Settings initialization failed: ${settingsError.message}`);
+  }
+
   return {
-    username: digits10,
-    name: digits10,
+    username: (created as any).username,
+    name: (created as any).name,
     role: "admin",
-    organisationId: null,
-    organisationPlan: "free",
+    organisationId: (created as any).organisation_id,
+    organisationPlan: payload?.plan || "free",
     phone,
     isNewUser: true,
   };

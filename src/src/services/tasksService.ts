@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireOrgId } from "./guardUtils";
 
 export type Task = {
   id: string;
@@ -44,9 +45,7 @@ export async function getTasks(organisationId?: string): Promise<Task[]> {
     .from("tasks")
     .select("*")
     .order("created_at", { ascending: false });
-  if (organisationId) {
-    query = query.eq("organisation_id", organisationId);
-  }
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) {
     console.error("[tasks] getTasks:", error.message);
@@ -94,7 +93,7 @@ export async function addTask(task: {
     status: task.status ?? "Pending",
     notes: task.notes ?? null,
   };
-  if (task.organisationId) row.organisation_id = task.organisationId;
+  row.organisation_id = requireOrgId(task.organisationId);
 
   const { data, error } = await supabase
     .from("tasks")
@@ -114,8 +113,8 @@ export async function addTask(task: {
   } as Task;
 }
 
-export async function updateTaskStatus(id: string, status: string): Promise<void> {
-  const { error } = await supabase.from("tasks").update({ status }).eq("id", id);
+export async function updateTaskStatus(id: string, status: string, organisationId?: string): Promise<void> {
+  const { error } = await supabase.from("tasks").update({ status }).eq("id", id).eq("organisation_id", requireOrgId(organisationId));
   if (error) console.error("[tasks] updateTaskStatus:", error.message);
 }
 
@@ -129,7 +128,8 @@ export async function updateTask(
     vendor?: string | null;
     deadline?: string | null;
     notes?: string | null;
-  }
+  },
+  organisationId?: string
 ): Promise<void> {
   const payload: any = {};
   if (updates.title !== undefined) payload.title = updates.title;
@@ -140,18 +140,18 @@ export async function updateTask(
   if (updates.deadline !== undefined) payload.deadline = updates.deadline ?? null;
   if (updates.notes !== undefined) payload.notes = updates.notes ?? null;
   if (Object.keys(payload).length === 0) return;
-  const { error } = await supabase.from("tasks").update(payload).eq("id", id);
+  const { error } = await supabase.from("tasks").update(payload).eq("id", id).eq("organisation_id", requireOrgId(organisationId));
   if (error) console.error("[tasks] updateTask:", error.message);
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+export async function deleteTask(id: string, organisationId?: string): Promise<void> {
+  const { error } = await supabase.from("tasks").delete().eq("id", id).eq("organisation_id", requireOrgId(organisationId));
   if (error) console.error("[tasks] deleteTask:", error.message);
 }
 
 export async function getWorkers(organisationId?: string): Promise<Worker[]> {
   let query = supabase.from("workers").select("id, name, username, role");
-  if (organisationId) query = query.eq("organisation_id", organisationId);
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) {
     console.error("[tasks] getWorkers:", error.message);
@@ -165,7 +165,7 @@ export async function getVendors(organisationId?: string): Promise<Vendor[]> {
     .from("vendors")
     .select("id, name, firm_name, username")
     .order("created_at", { ascending: false });
-  if (organisationId) query = query.eq("organisation_id", organisationId);
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) {
     console.error("[tasks] getVendors:", error.message);
@@ -193,7 +193,7 @@ export async function addTaskId(record: {
     username: record.username,
     password: record.password,
   };
-  if (record.organisationId) row.organisation_id = record.organisationId;
+  row.organisation_id = requireOrgId(record.organisationId);
 
   const { data, error } = await supabase
     .from("task_ids")
@@ -213,7 +213,7 @@ export async function getTaskIds(organisationId?: string): Promise<TaskIdRecord[
   let query = supabase.from("task_ids").select("*").order("created_at", {
     ascending: false,
   });
-  if (organisationId) query = query.eq("organisation_id", organisationId);
+  query = query.eq("organisation_id", requireOrgId(organisationId));
   const { data, error } = await query;
   if (error) {
     console.error("[tasks] getTaskIds:", error.message);
