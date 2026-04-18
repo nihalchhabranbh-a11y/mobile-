@@ -43,21 +43,15 @@ export const LoginScreen: React.FC<Props> = ({ onLogin }) => {
     try {
       const user = await loginWithCredentials(username, password);
       if (!user) {
-        setError("Invalid credentials.");
+        setError("No account found with that username/password. (Check spelling or contact admin)");
         return;
       }
       onLogin(user);
     } catch (e: any) {
       console.error("[Login] Auth failed:", e);
-      let msg = e?.message || "Something went wrong.";
-      if (msg.includes("Database error")) {
-        msg = "Could not connect to the database. Please try again later.";
-      } else if (msg.includes("Organisation is disabled")) {
-        msg = "Your organisation is disabled or not approved yet.";
-      } else if (msg.includes("Invalid credentials")) {
-        msg = "Incorrect username or password.";
-      }
-      setError(msg);
+      // Show raw error for debugging
+      const rawMsg = e?.message || JSON.stringify(e) || "Unknown error";
+      setError(`Login failed: ${rawMsg}`);
     } finally {
       setLoading(false);
     }
