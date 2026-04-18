@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors as darkColors, spacing, radius } from "./theme";
+import { colors as baseColors, spacing, radius } from "./theme";
 
-type ColorPalette = typeof darkColors;
+type ColorPalette = typeof baseColors;
 
 type ThemeMode = "dark" | "light";
 
@@ -15,7 +15,21 @@ type ThemeContextValue = {
 };
 
 const lightColors: ColorPalette = {
-  ...darkColors,
+  ...baseColors,
+};
+
+const darkColors: ColorPalette = {
+  ...baseColors,
+  background:       "#0F1117",
+  surface:          "#1C1C2E",
+  cardBackground:   "#1C1C2E",
+  cardBorder:       "#2A2A3C",
+  textPrimary:      "#F1F5F9",
+  textSecondary:    "#94A3B8",
+  textMuted:        "#64748B",
+  divider:          "#2A2A3C",
+  inputBackground:  "#1E293B",
+  tabBarBg:         "#1C1C2E",
 };
 
 const STORAGE_KEY = "pm_theme_mode";
@@ -31,9 +45,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        // Force light mode for the Orange Redesign, ignore stored dark mode
-        if (stored === "light") {
-
+        if (stored === "dark" || stored === "light") {
           setMode(stored);
         }
       } catch {

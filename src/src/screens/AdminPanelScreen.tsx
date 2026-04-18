@@ -26,6 +26,15 @@ export const AdminPanelScreen: React.FC = () => {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
 
+  if (user?.role !== "admin") {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background }}>
+        <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: "bold" }}>Unauthorized</Text>
+        <Text style={{ color: colors.textSecondary, marginTop: 8 }}>You do not have administration permissions.</Text>
+      </View>
+    );
+  }
+
   const load = useCallback(async () => {
     try {
       setLoading(true);

@@ -78,8 +78,10 @@ export function EWayBillScreen() {
         .order("created_at", { ascending: false })
         .limit(50);
       setEwbs((data as EWB[]) ?? []);
-    } catch (_) {}
-    setListLoading(false);
+    } catch (_) {
+    } finally {
+      setListLoading(false);
+    }
   }, [user?.organisationId]);
 
   useFocusEffect(useCallback(() => { loadEWBs(); }, [loadEWBs]));
@@ -111,9 +113,23 @@ export function EWayBillScreen() {
         now.getFullYear(),
       ].join("/");
 
+      let gstRate = 18; // default fallback
+      const { data: billData } = await supabase
+        .from("bills")
+        .select("items")
+        .eq("bill_number", form.billNo)
+        .eq("organisation_id", user?.organisationId ?? "")
+        .limit(1)
+        .maybeSingle();
+
+      if (billData && Array.isArray(billData.items) && billData.items.length > 0) {
+        gstRate = Number(billData.items[0].tax_rate || billData.items[0].tax || 18);
+      }
+
       const totalValue   = parseFloat(form.value) || 0;
-      const taxableValue = totalValue * 0.85;
-      const halfGst      = (totalValue - taxableValue) / 2;
+      const taxableValue = totalValue / (1 + gstRate / 100);
+      const taxPortion   = totalValue - taxableValue;
+      const halfGst      = taxPortion / 2;
 
       const result = await generateEWayBill({
         seller_gstin:    sellerGstin,
@@ -138,7 +154,7 @@ export function EWayBillScreen() {
         hsn_code:        form.hsnCode || undefined,
       });
 
-      await supabase.from("eway_bills").insert({
+      const { error: insertError } = await supabase.from("eway_bills").insert({
         organisation_id: user?.organisationId ?? "",
         ewb_no:          result.ewb_no,
         ewb_date:        result.ewb_date,
@@ -150,6 +166,10 @@ export function EWayBillScreen() {
         transporter:     form.transporter || null,
         status:          "ACTIVE",
       });
+
+      if (insertError) {
+        throw new Error(insertError.message || "Failed to save E-Way Bill to database.");
+      }
 
       await loadEWBs();
       setForm(BLANK);

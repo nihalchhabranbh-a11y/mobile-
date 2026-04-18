@@ -1,6 +1,7 @@
 import React, { createContext, useContext } from "react";
 
 export type User = {
+  id?: string;
   username: string;
   name: string;
   role: "admin" | "worker";

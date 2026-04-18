@@ -62,9 +62,18 @@ export function EInvoiceScreen() {
         .eq("gst", true)
         .order("created_at", { ascending: false })
         .limit(80);
-      if (!error && data) setBills(data as Bill[]);
-    } catch (_) {}
-    setLoading(false);
+      if (!error && data) {
+        setBills(data as Bill[]);
+        const st: Record<string, EInvStatus> = {};
+        for (const b of data as Bill[]) {
+          if (b.irn) st[b.id] = "generated";
+        }
+        setStatuses(st);
+      }
+    } catch (_) {
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => { fetchBills(); }, [fetchBills]);
@@ -74,6 +83,8 @@ export function EInvoiceScreen() {
   );
 
   const generateIRN = async (bill: Bill) => {
+    if (bill.irn || statuses[bill.id] === "generated") return; // Guard to prevent re-generating
+    
     setStatuses((s) => ({ ...s, [bill.id]: "generating" }));
     try {
       // Fetch seller GSTIN from org settings

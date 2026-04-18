@@ -1,6 +1,7 @@
 import { supabase } from "./supabaseClient";
 
 export type AuthUser = {
+  id?: string;
   username: string;
   name: string;
   role: "admin" | "worker";
@@ -44,6 +45,7 @@ export async function loginWithCredentials(
         throw new Error("Organisation is disabled or not approved.");
       }
       return {
+        id: (adminData as any).id,
         username: (adminData as any).username,
         name: (adminData as any).name || (adminData as any).username,
         role: "admin",
@@ -75,6 +77,7 @@ export async function loginWithCredentials(
         throw new Error("Organisation is disabled or not approved.");
       }
       return {
+        id: (workerData as any).id,
         username: (workerData as any).username,
         name: (workerData as any).name || (workerData as any).username,
         role: ((workerData as any).role as "admin" | "worker") || "worker",
@@ -106,6 +109,7 @@ export async function loginWithCredentials(
         throw new Error("Organisation is disabled or not approved.");
       }
       return {
+        id: (vendorData as any).id,
         username: (vendorData as any).username,
         name: (vendorData as any).name || (vendorData as any).firm_name || (vendorData as any).username,
         role: "worker",
@@ -146,6 +150,7 @@ export async function findUserByPhone(phone: string): Promise<AuthUser | null> {
         throw new Error("Account not linked to any organisation.");
       }
       return {
+        id: adminData.id,
         username: (adminData as any).username,
         name: (adminData as any).name || (adminData as any).username,
         role: "admin",
@@ -178,6 +183,7 @@ export async function findUserByPhone(phone: string): Promise<AuthUser | null> {
         throw new Error("Account not linked to any organisation.");
       }
       return {
+        id: workerData.id,
         username: (workerData as any).username,
         name: (workerData as any).name || (workerData as any).username,
         role: ((workerData as any).role as "admin" | "worker") || "worker",
@@ -260,6 +266,7 @@ export async function registerUserByPhone(phone: string, payload?: any): Promise
   }
 
   return {
+    id: (created as any).id,
     username: (created as any).username,
     name: (created as any).name,
     role: "admin",

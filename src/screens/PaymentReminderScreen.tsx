@@ -87,6 +87,10 @@ export function PaymentReminderScreen() {
       );
     } else {
       const phone = (bill.phone || "").replace(/\D/g, "");
+      if (!phone) {
+        Alert.alert("No Phone", "This customer has no phone number.");
+        return;
+      }
       const url = Platform.OS === "android" ? `sms:${phone}?body=${encoded}` : `sms:${phone}&body=${encoded}`;
       Linking.openURL(url).catch(() =>
         Alert.alert("SMS Error", "Could not open SMS app.")

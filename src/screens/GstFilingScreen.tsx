@@ -81,7 +81,7 @@ export function GstFilingScreen() {
         .eq("organisation_id", user.organisationId)
         .eq("deleted", false)
         .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59");
+        .lte("created_at", to + "T23:59:59.999Z");
 
       const bills = data ?? [];
       const gstBills    = bills.filter((b: any) => b.gst);
@@ -93,7 +93,7 @@ export function GstFilingScreen() {
       const cgst = totalGst / 2;
       const sgst = totalGst / 2;
       const igst = 0;
-      const itc  = 0; // ITC from purchases — set to 0 until purchase data is linked
+      const itc  = 0; // TODO: ITC from purchases — set to 0 until actual purchase data integration is linked
       const netPayable = Math.max(0, totalGst - itc);
 
       setSummary({
@@ -104,8 +104,9 @@ export function GstFilingScreen() {
       });
     } catch (e) {
       console.warn(e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [user, period]);
 
   useEffect(() => { computeSummary(); }, [computeSummary]);

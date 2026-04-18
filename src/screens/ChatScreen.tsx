@@ -56,7 +56,7 @@ export function ChatScreen() {
   const card = dark ? "#1C1C2E" : "#FFFFFF";
   const txt  = dark ? "#F1F5F9" : "#111827";
   const sub  = dark ? "#94A3B8" : "#6B7280";
-  const myId = user?.phone ?? "local";
+  const myId = user?.id ?? "";
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -72,35 +72,65 @@ export function ChatScreen() {
     } catch (_) {
       // If table doesn't exist yet, show empty state gracefully
       setMessages([]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
     }
-    setLoading(false);
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
   }, [room, user]);
 
   // Realtime subscription
   useEffect(() => {
     loadMessages();
+    
+    // In Supabase Realtime JS, 'filter' strictly supports only one column (e.g. 'room_id=eq.X').
+    // We filter by room_id server-side, and apply organisation_id filtering client-side
+    // to prevent cross-organisation leaks while retaining valid filter syntax.
     const ch = supabase
-      .channel(`chat:${room.id}`)
+      .channel(`chat:${room.id}:${user?.organisationId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "chat_messages",
         filter: `room_id=eq.${room.id}`,
       }, (payload) => {
-        setMessages((m) => [...m, payload.new as Message]);
+        const newMsg = payload.new as Message & { organisation_id?: string; room_id?: string };
+        
+        // Data leakage guard: ignore messages from other orgs
+        if (newMsg.organisation_id && newMsg.organisation_id !== user?.organisationId) {
+          return;
+        }
+
+        setMessages((m) => {
+          // Deduplication: if the sender is me, try to replace the optimistic message
+          if (newMsg.sender_id === myId) {
+            const tempIdx = m.findIndex((x) => x.id.startsWith("temp_") && x.content === newMsg.content);
+            if (tempIdx !== -1) {
+              const newList = [...m];
+              newList[tempIdx] = newMsg;
+              return newList;
+            }
+          }
+          // Prevent standard duplicates
+          if (m.some((x) => x.id === newMsg.id)) return m;
+          return [...m, newMsg];
+        });
         setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
       })
       .subscribe();
     channelRef.current = ch;
     return () => { ch.unsubscribe(); };
-  }, [loadMessages, room]);
+  }, [loadMessages, room.id, user, myId]);
 
   const sendMessage = async () => {
     const content = text.trim();
     if (!content) return;
+    if (!user?.id) {
+      Alert.alert("Error", "You must be logged in to send messages.");
+      return;
+    }
     setText("");
 
+    const tempId = `temp_${Date.now()}`;
     const msg: Message = {
-      id:          Date.now().toString(),
+      id:          tempId,
       sender_id:   myId,
       sender_name: user?.username ?? "You",
       content,
@@ -111,15 +141,18 @@ export function ChatScreen() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
 
     try {
-      await supabase.from("chat_messages").insert({
+      const { error } = await supabase.from("chat_messages").insert({
         room_id:         room.id,
         organisation_id: user?.organisationId,
-        sender_id:       myId,
+        sender_id:       user.id,
         sender_name:     user?.username ?? "Unknown",
         content,
       });
+      if (error) throw error;
     } catch (_) {
       Alert.alert("Error", "Failed to send message. Check your connection.");
+      // Rollback optimistic update on failure
+      setMessages((m) => m.filter((x) => x.id !== tempId));
     }
   };
 

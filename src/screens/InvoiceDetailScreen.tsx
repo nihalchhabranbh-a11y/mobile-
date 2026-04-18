@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -59,9 +59,9 @@ export function InvoiceDetailScreen() {
       return;
     }
     loadData();
-  }, [billId]);
+  }, [billId, loadData, navigation]);
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [b, p, sig, att] = await Promise.all([
@@ -83,7 +83,7 @@ export function InvoiceDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [billId, user?.organisationId]);
 
   const handleDelete = () => {
     Alert.alert("Delete Invoice", `Are you sure you want to delete ${billId}?`, [

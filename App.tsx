@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 
 export const navigationRef = createNavigationContainerRef<any>();
@@ -397,9 +397,7 @@ function MainStack() {
         <Stack.Screen name="RecoverDeleted"       component={RecoverDeletedScreen} />
         <Stack.Screen name="Products"             component={ProductsScreen} />
         <Stack.Screen name="OtpVerify"            component={OtpVerifyScreen} />
-        {user?.role === "admin" && (
-          <Stack.Screen name="Admin" component={AdminPanelScreen} />
-        )}
+        <Stack.Screen name="Admin" component={AdminPanelScreen} />
       </Stack.Navigator>
     </WebSidebarLayout>
   );
@@ -408,6 +406,31 @@ function MainStack() {
 // ─────────────────────────────────────────────────────────────────────────────
 //  ROOT APP
 // ─────────────────────────────────────────────────────────────────────────────
+
+const IncompleteRegistrationScreen = () => {
+  const { user, setUser } = useUser();
+  
+  useEffect(() => {
+    console.error("[App] Orphaned user account missing organisationId:", user?.username);
+  }, []);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: "#0F1117", justifyContent: "center", alignItems: "center" }}>
+      <Ionicons name="warning" size={48} color="#FF6600" />
+      <Text style={{ marginTop: 24, color: "#fff", fontSize: 20, fontWeight: "bold" }}>Incomplete Registration</Text>
+      <Text style={{ marginTop: 8, color: "#94A3B8", fontSize: 14, textAlign: "center", paddingHorizontal: 32 }}>
+        Your account is missing an organisation ID. Please contact support or register again.
+      </Text>
+      <TouchableOpacity 
+        style={{ padding: 12, backgroundColor: "#FF6600", borderRadius: 8, marginTop: 24 }}
+        onPress={() => setUser(null)}
+      >
+        <Text style={{ color: "#fff", fontWeight: "bold" }}>Log Out</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
 export default function App() {
   const [user, setUser]       = useState<User>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -461,7 +484,7 @@ export default function App() {
         useNativeDriver: true,
       }).start();
 
-      Animated.loop(
+      const animation = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.1,
@@ -476,7 +499,10 @@ export default function App() {
             useNativeDriver: true,
           })
         ])
-      ).start();
+      );
+      animation.start();
+
+      return () => animation.stop();
     }
   }, [fontsLoaded, hydrated, fadeAnim, pulseAnim]);
 
@@ -504,28 +530,7 @@ export default function App() {
                 user.organisationId ? (
                   <Stack.Screen name="Main" component={MainStack} />
                 ) : (
-                  <Stack.Screen name="Incomplete">
-                    {() => {
-                      useEffect(() => {
-                        console.error("[App] Orphaned user account missing organisationId:", user.username);
-                      }, []);
-                      return (
-                        <View style={{ flex: 1, backgroundColor: "#0F1117", justifyContent: "center", alignItems: "center" }}>
-                          <Ionicons name="warning" size={48} color="#FF6600" />
-                          <Text style={{ marginTop: 24, color: "#fff", fontSize: 20, fontWeight: "bold" }}>Incomplete Registration</Text>
-                          <Text style={{ marginTop: 8, color: "#94A3B8", fontSize: 14, textAlign: "center", paddingHorizontal: 32 }}>
-                            Your account is missing an organisation ID. Please contact support or register again.
-                          </Text>
-                          <TouchableOpacity 
-                            style={{ padding: 12, backgroundColor: "#FF6600", borderRadius: 8, marginTop: 24 }}
-                            onPress={() => setUser(null)}
-                          >
-                            <Text style={{ color: "#fff", fontWeight: "bold" }}>Log Out</Text>
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    }}
-                  </Stack.Screen>
+                  <Stack.Screen name="Incomplete" component={IncompleteRegistrationScreen} />
                 )
               ) : (
                 <>
