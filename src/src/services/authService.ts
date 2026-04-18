@@ -29,7 +29,7 @@ export async function loginWithCredentials(
   try {
     const { data: adminData, error: adminErr } = await supabase
       .from("org_admins")
-      .select("id, username, password, name, organisation_id, organisations(status, access_enabled)")
+      .select("id, username, password, name, organisation_id")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
@@ -41,9 +41,6 @@ export async function loginWithCredentials(
     }
 
     if (adminData) {
-      if (!allowedOrg((adminData as any).organisations, (adminData as any).organisation_id)) {
-        throw new Error("Organisation is disabled or not approved.");
-      }
       return {
         id: (adminData as any).id,
         username: (adminData as any).username,
@@ -61,7 +58,7 @@ export async function loginWithCredentials(
   try {
     const { data: workerData, error: workerErr } = await supabase
       .from("workers")
-      .select("id, username, password, name, role, organisation_id, organisations(status, access_enabled)")
+      .select("id, username, password, name, role, organisation_id")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
@@ -73,9 +70,6 @@ export async function loginWithCredentials(
     }
 
     if (workerData) {
-      if (!allowedOrg((workerData as any).organisations, (workerData as any).organisation_id)) {
-        throw new Error("Organisation is disabled or not approved.");
-      }
       return {
         id: (workerData as any).id,
         username: (workerData as any).username,
@@ -93,7 +87,7 @@ export async function loginWithCredentials(
   try {
     const { data: vendorData, error: vendorErr } = await supabase
       .from("vendors")
-      .select("id, username, password, name, firm_name, organisation_id, organisations(status, access_enabled)")
+      .select("id, username, password, name, firm_name, organisation_id")
       .eq("username", u)
       .eq("password", p)
       .limit(1)
@@ -105,9 +99,6 @@ export async function loginWithCredentials(
     }
 
     if (vendorData) {
-      if (!allowedOrg((vendorData as any).organisations, (vendorData as any).organisation_id)) {
-        throw new Error("Organisation is disabled or not approved.");
-      }
       return {
         id: (vendorData as any).id,
         username: (vendorData as any).username,
