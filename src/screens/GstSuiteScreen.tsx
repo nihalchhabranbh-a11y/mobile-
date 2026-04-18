@@ -49,9 +49,8 @@ const SUITE_ITEMS = [
   },
 ];
 
-// Removed hardcoded STATS array.
-
 // ─────────────────────────────────────────────────────────────
+export function GstSuiteScreen() {
   const { colors, mode } = useTheme();
   const { user } = useUser();
   const navigation = useNavigation<any>();
