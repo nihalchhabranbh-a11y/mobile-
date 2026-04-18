@@ -84,7 +84,9 @@ export function EWayBillScreen() {
     }
   }, [user?.organisationId]);
 
-  useFocusEffect(useCallback(() => { loadEWBs(); }, [loadEWBs]));
+  useEffect(() => {
+    loadEWBs();
+  }, [loadEWBs]);
 
   // ── Generate E-Way Bill ───────────────────────────────────────
   const handleGenerate = async () => {

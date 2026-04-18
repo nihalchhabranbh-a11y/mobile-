@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar, Platform,
@@ -7,7 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../themeContext";
-import { useNavigation } from "@react-navigation/native";
+import { useUser } from "../userContext";
+import { useNavigation, useIsFocused } from "@react-navigation/native";
+import { supabase } from "../src/services/supabaseClient";
 
 // ─────────────────────────────────────────────────────────────
 //  Data
@@ -47,22 +49,64 @@ const SUITE_ITEMS = [
   },
 ];
 
-const STATS = [
-  { label: "Invoices This Month", value: "24",  icon: "receipt",         color: "#2563EB" },
-  { label: "E-Way Bills",         value: "8",   icon: "car-sport",       color: "#7C3AED" },
-  { label: "GST Payable",         value: "₹0",  icon: "cash",            color: "#D97706" },
-  { label: "Pending Returns",     value: "2",   icon: "alert-circle",    color: "#DC2626" },
-];
+// Removed hardcoded STATS array.
 
 // ─────────────────────────────────────────────────────────────
-export function GstSuiteScreen() {
   const { colors, mode } = useTheme();
+  const { user } = useUser();
   const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+  
   const dark = mode === "dark";
   const bg   = dark ? "#0F1117" : "#F0F4FF";
   const card = dark ? "#1C1C2E" : "#FFFFFF";
   const txt  = dark ? "#F1F5F9" : "#111827";
   const sub  = dark ? "#94A3B8" : "#6B7280";
+
+  const [stats, setStats] = useState([
+    { label: "Invoices This Month", value: "-",  icon: "receipt",         color: "#2563EB" },
+    { label: "E-Way Bills",         value: "-",   icon: "car-sport",       color: "#7C3AED" },
+    { label: "GST Payable",         value: "₹0",  icon: "cash",            color: "#D97706" },
+    { label: "Pending Returns",     value: "-",   icon: "alert-circle",    color: "#DC2626" },
+  ]);
+
+  useEffect(() => {
+    if (isFocused && user?.organisationId) {
+      loadStats();
+    }
+  }, [isFocused, user?.organisationId]);
+
+  const loadStats = async () => {
+    try {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+      // Bills this month
+      const { count: billsCount } = await supabase
+        .from("bills")
+        .select("*", { count: "exact", head: true })
+        .eq("organisation_id", user.organisationId)
+        .gte("created_at", firstDay)
+        .lte("created_at", lastDay);
+
+      // EWay Bills total (or this month)
+      const { count: ewbCount } = await supabase
+        .from("eway_bills")
+        .select("*", { count: "exact", head: true })
+        .eq("organisation_id", user.organisationId)
+        .eq("status", "ACTIVE");
+
+      setStats([
+        { label: "Invoices This Month", value: `${billsCount || 0}`, icon: "receipt", color: "#2563EB" },
+        { label: "E-Way Bills (Active)", value: `${ewbCount || 0}`, icon: "car-sport", color: "#7C3AED" },
+        { label: "GST Payable", value: "₹0", icon: "cash", color: "#D97706" },
+        { label: "Pending Returns", value: "2", icon: "alert-circle", color: "#DC2626" },
+      ]);
+    } catch (err) {
+      console.warn("Failed to load suite stats", err);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
@@ -87,7 +131,7 @@ export function GstSuiteScreen() {
 
         {/* ── Stats Row ──────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ paddingLeft: 18, marginBottom: 24 }}>
-          {STATS.map((s) => (
+          {stats.map((s) => (
             <View key={s.label} style={[styles.statCard, { backgroundColor: card }]}>
               <View style={[styles.statIconWrap, { backgroundColor: s.color + "16" }]}>
                 <Ionicons name={s.icon as any} size={18} color={s.color} />
