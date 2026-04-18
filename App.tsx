@@ -431,6 +431,12 @@ const IncompleteRegistrationScreen = () => {
   );
 };
 
+// Wrapper so Login screen never uses an inline render prop (Rules of Hooks)
+const LoginScreenWrapper = ({ route, navigation }: any) => {
+  const { setUser } = useUser();
+  return <LoginScreen onLogin={setUser} />;
+};
+
 export default function App() {
   const [user, setUser]       = useState<User>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -535,9 +541,7 @@ export default function App() {
               ) : (
                 <>
                   <Stack.Screen name="Register"  component={RegisterScreen} />
-                  <Stack.Screen name="Login">
-                    {() => <LoginScreen onLogin={setUser} />}
-                  </Stack.Screen>
+                  <Stack.Screen name="Login" component={LoginScreenWrapper} />
                   <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
                 </>
               )}

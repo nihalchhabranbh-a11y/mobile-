@@ -117,7 +117,7 @@ export function ChatScreen() {
       .subscribe();
     channelRef.current = ch;
     return () => { ch.unsubscribe(); };
-  }, [loadMessages, room.id, user, myId]);
+  }, [loadMessages, room.id, user?.organisationId, myId]);
 
   const sendMessage = async () => {
     const content = text.trim();
