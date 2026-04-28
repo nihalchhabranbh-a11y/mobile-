@@ -85,7 +85,7 @@ export const MoreScreen: React.FC = () => {
   const initial = companyName.charAt(0) || "B";
 
   const S = React.useMemo(() => StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: "#F7F8FA" },
+    safeArea: { flex: 1, backgroundColor: colors.background },
     scroll: { flex: 1 },
     scrollContent: { paddingHorizontal: spacing.md, paddingBottom: 100 },
     header: {
@@ -95,7 +95,7 @@ export const MoreScreen: React.FC = () => {
       paddingTop: insets.paddingTop || spacing.md,
       paddingBottom: spacing.md,
       paddingHorizontal: spacing.md,
-      backgroundColor: "#fff",
+      backgroundColor: colors.cardBackground,
     },
     headerLeft: {
       flexDirection: "row",
@@ -106,19 +106,19 @@ export const MoreScreen: React.FC = () => {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "#E0E7FF",
+      backgroundColor: colors.accentBlue + "20",
       justifyContent: "center",
       alignItems: "center",
     },
     avatarText: {
-      color: "#3730A3",
+      color: colors.accentBlue,
       fontSize: 16,
       fontFamily: "Inter_700Bold",
     },
     headerName: {
       fontSize: 18,
       fontFamily: "Inter_700Bold",
-      color: "#111827",
+      color: colors.textPrimary,
     },
     watermarkBanner: {
       backgroundColor: "#F97316",
@@ -146,7 +146,7 @@ export const MoreScreen: React.FC = () => {
       color: "rgba(255,255,255,0.85)",
     },
     completionCard: {
-      backgroundColor: "#fff",
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.lg,
       padding: spacing.md,
       marginBottom: spacing.lg,
@@ -161,12 +161,12 @@ export const MoreScreen: React.FC = () => {
     completionTitle: {
       fontSize: 15,
       fontFamily: "Inter_700Bold",
-      color: "#111827",
+      color: colors.textPrimary,
     },
     completionSubtitle: {
       fontSize: 11,
       fontFamily: "Inter_500Medium",
-      color: "#6B7280",
+      color: colors.textSecondary,
     },
     completionScoreWrap: {
       flexDirection: "row",
@@ -175,23 +175,23 @@ export const MoreScreen: React.FC = () => {
     completionScore: {
       fontSize: 24,
       fontFamily: "Inter_700Bold",
-      color: "#111827",
+      color: colors.textPrimary,
     },
     completionPercent: {
       fontSize: 14,
       fontFamily: "Inter_600SemiBold",
-      color: "#6B7280",
+      color: colors.textSecondary,
     },
     progressBarBg: {
       height: 6,
-      backgroundColor: "#E5E7EB",
+      backgroundColor: colors.divider,
       borderRadius: 3,
       marginVertical: spacing.sm,
       overflow: "hidden",
     },
     progressBarFill: {
       height: "100%",
-      backgroundColor: "#2563EB",
+      backgroundColor: colors.accentBlue,
       borderRadius: 3,
     },
     missingFieldsRow: {
@@ -204,19 +204,19 @@ export const MoreScreen: React.FC = () => {
       paddingVertical: 4,
     },
     missingFieldText: {
-      color: "#2563EB",
+      color: colors.accentBlue,
       fontSize: 13,
       fontFamily: "Inter_600SemiBold",
     },
     sectionTitle: {
       fontSize: 15,
       fontFamily: "Inter_700Bold",
-      color: "#111827",
+      color: colors.textPrimary,
       marginBottom: spacing.sm,
       marginTop: spacing.sm,
     },
     sectionCard: {
-      backgroundColor: "#fff",
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.lg,
       marginBottom: spacing.lg,
       overflow: "hidden",
@@ -227,7 +227,7 @@ export const MoreScreen: React.FC = () => {
       alignItems: "center",
       padding: spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: "#F3F4F6",
+      borderBottomColor: colors.divider,
     },
     rowIcon: {
       width: 28,
@@ -238,16 +238,16 @@ export const MoreScreen: React.FC = () => {
       marginLeft: spacing.sm,
       fontSize: 15,
       fontFamily: "Inter_500Medium",
-      color: "#374151",
+      color: colors.textPrimary,
     },
     planFooter: {
-      backgroundColor: "#2563EB",
+      backgroundColor: colors.accentBlue,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       padding: spacing.md,
       position: "absolute",
-      bottom: 0, // Above bottom tabs theoretically, if outside ScrollView
+      bottom: 0,
       left: 0,
       right: 0,
     },
@@ -267,7 +267,7 @@ export const MoreScreen: React.FC = () => {
       fontFamily: "Inter_500Medium",
       opacity: 0.9,
     },
-  }), [spacing, radius, insets]);
+  }), [spacing, radius, insets, colors]);
 
   const profileItems = [
     { icon: "business-outline", label: "Company Details", screen: "CompanyDetails" },
@@ -312,10 +312,10 @@ export const MoreScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             <View style={S.rowIcon}>
-              <Ionicons name={item.icon} size={20} color={item.color || "#6B7280"} />
+              <Ionicons name={item.icon} size={20} color={item.color || colors.textSecondary} />
             </View>
             <Text style={[S.rowText, item.color && { color: item.color }]}>{item.label}</Text>
-            {item.action !== "logout" && <Ionicons name="chevron-forward" size={16} color="#2563EB" />}
+            {item.action !== "logout" && <Ionicons name="chevron-forward" size={16} color={colors.accentBlue} />}
           </TouchableOpacity>
         ))}
       </View>
@@ -336,7 +336,7 @@ export const MoreScreen: React.FC = () => {
           <Text style={S.headerName}>{companyName}</Text>
         </View>
         <TouchableOpacity>
-          <Ionicons name="notifications-outline" size={24} color="#111827" />
+          <Ionicons name="notifications-outline" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 

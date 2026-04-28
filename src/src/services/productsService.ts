@@ -26,6 +26,7 @@ export type NewProductPayload = {
   taxRate: number;
   unit?: string | null;
   hsnCode?: string | null;
+  itemCode?: string | null;
   organisationId?: string;
 };
 
@@ -65,6 +66,7 @@ export async function createProductQuick(payload: NewProductPayload) {
   const row: any = {
     name: payload.name,
     category: "product",
+    item_code: payload.itemCode ?? null,
     default_rate: payload.defaultRate ?? 0,
     tax_rate: payload.taxRate ?? 0,
     unit: payload.unit ?? null,
@@ -196,4 +198,115 @@ export async function deleteProduct(id: string, orgId?: string | null): Promise<
   const { error } = await supabase.from("products").delete().eq("id", id).eq("organisation_id", requireOrgId(orgId));
   if (error) console.error("[products] deleteProduct:", error.message);
 }
+
+/**
+ * Look up a product by barcode (stored in item_code column).
+ *
+ * Strategy (tries each in order until a match is found):
+ *  1. Exact match on item_code (active products only)
+ *  2. Exact match on item_code (all products — catches inactive items)
+ *  3. Numeric-normalised match — strips leading zeros for EAN-8/13 comparisons
+ *  4. Case-insensitive ILIKE match — handles scan apps that change case
+ *
+ * Returns the first match found, or null if genuinely not in DB.
+ */
+export async function lookupByBarcode(barcode: string, orgId?: string | null): Promise<Product | null> {
+  const clean = (barcode || "").trim();
+  if (!clean) return null;
+
+  // Guard: if we have no orgId we cannot safely scope the query
+  if (!orgId) {
+    console.warn("[lookupByBarcode] orgId missing — cannot look up product safely.");
+    return null;
+  }
+
+  console.log(`[lookupByBarcode] Searching for barcode: "${clean}" in org: ${orgId}`);
+
+  const mapRow = (data: any): Product => ({
+    id: data.id,
+    name: data.name,
+    category: data.category || "product",
+    item_code: data.item_code ?? null,
+    hsn_code: data.hsn_code ?? null,
+    unit: data.unit ?? null,
+    default_rate: Number(data.default_rate ?? 0),
+    tax_rate: Number(data.tax_rate ?? 0),
+    purchase_price: Number(data.purchase_price ?? 0),
+    opening_stock: Number(data.opening_stock ?? 0),
+    stock_as_of: data.stock_as_of ?? null,
+    size: data.size ?? null,
+    description: data.description ?? null,
+    keywords: data.keywords ?? null,
+    active: data.active !== false,
+    created_at: data.created_at,
+  });
+
+  try {
+    // ── Strategy 1: Exact match, active products only ─────────────────────────
+    const { data: d1, error: e1 } = await supabase
+      .from("products")
+      .select("*")
+      .eq("organisation_id", orgId)
+      .eq("item_code", clean)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (d1) { console.log("[lookupByBarcode] ✅ Found via Strategy 1 (exact, active):", d1.name); return mapRow(d1); }
+    if (e1) console.warn("[lookupByBarcode] Strategy 1 error:", e1.message);
+
+    // ── Strategy 2: Exact match, ANY active status (covers active=false or null) ──
+    const { data: d2, error: e2 } = await supabase
+      .from("products")
+      .select("*")
+      .eq("organisation_id", orgId)
+      .eq("item_code", clean)
+      .limit(1)
+      .maybeSingle();
+
+    if (d2) { console.log("[lookupByBarcode] ✅ Found via Strategy 2 (exact, any status):", d2.name); return mapRow(d2); }
+    if (e2) console.warn("[lookupByBarcode] Strategy 2 error:", e2.message);
+
+    // ── Strategy 3: Strip leading zeros (EAN barcodes sometimes differ) ────────
+    const stripped = clean.replace(/^0+/, "") || clean;
+    if (stripped !== clean) {
+      const { data: d3 } = await supabase
+        .from("products")
+        .select("*")
+        .eq("organisation_id", orgId)
+        .eq("item_code", stripped)
+        .limit(1)
+        .maybeSingle();
+
+      if (d3) { console.log("[lookupByBarcode] ✅ Found via Strategy 3 (stripped zeros):", d3.name); return mapRow(d3); }
+    }
+
+    // ── Strategy 4: Case-insensitive substring ilike ──────────────────────────
+    const { data: d4list } = await supabase
+      .from("products")
+      .select("*")
+      .eq("organisation_id", orgId)
+      .ilike("item_code", clean)
+      .limit(1);
+
+    const d4 = d4list?.[0] ?? null;
+    if (d4) { console.log("[lookupByBarcode] ✅ Found via Strategy 4 (ilike):", d4.name); return mapRow(d4); }
+
+    // ── Nothing found — log all stored item_codes for debugging ──────────────
+    console.warn(`[lookupByBarcode] ❌ No product found for barcode "${clean}". Listing stored item_codes for this org:`);
+    const { data: allCodes } = await supabase
+      .from("products")
+      .select("name, item_code, active")
+      .eq("organisation_id", orgId)
+      .limit(20);
+    console.warn("[lookupByBarcode] stored codes:", JSON.stringify(allCodes));
+
+    return null;
+  } catch (e) {
+    console.warn("[lookupByBarcode] Unexpected error:", e);
+    return null;
+  }
+}
+
+
 

@@ -25,94 +25,33 @@ export async function loginWithCredentials(
   const p = (password || "").trim();
   if (!u || !p) return null;
 
-  // Org admins
   try {
-    const { data: adminData, error: adminErr } = await supabase
-      .from("org_admins")
-      .select("id, username, password, name, organisation_id")
-      .eq("username", u)
-      .eq("password", p)
-      .limit(1)
-      .maybeSingle();
+    const { data: resData, error: err } = await supabase.functions.invoke("app-auth", {
+      body: { username: u, password: p },
+    });
 
-    if (adminErr) {
-      console.error("DB Error (org_admins login):", adminErr);
-      throw new Error(`Database error: ${adminErr.message}`);
+    if (err) {
+      console.error("app-auth invoke error:", err);
+      throw new Error(`Authentication error: ${err.message}`);
     }
 
-    if (adminData) {
+    if (resData?.user) {
       return {
-        id: (adminData as any).id,
-        username: (adminData as any).username,
-        name: (adminData as any).name || (adminData as any).username,
-        role: "admin",
-        organisationId: (adminData as any).organisation_id,
+        id: resData.user.id,
+        username: resData.user.username,
+        name: resData.user.name,
+        role: resData.user.role,
+        organisationId: resData.user.organisationId,
         organisationPlan: "free",
       };
     }
+    
+    // User not found or mismatch
+    return null;
   } catch (err: any) {
+    console.error("Login Error:", err);
     throw err;
   }
-
-  // Workers
-  try {
-    const { data: workerData, error: workerErr } = await supabase
-      .from("workers")
-      .select("id, username, password, name, role, organisation_id")
-      .eq("username", u)
-      .eq("password", p)
-      .limit(1)
-      .maybeSingle();
-
-    if (workerErr) {
-      console.error("DB Error (workers login):", workerErr);
-      throw new Error(`Database error: ${workerErr.message}`);
-    }
-
-    if (workerData) {
-      return {
-        id: (workerData as any).id,
-        username: (workerData as any).username,
-        name: (workerData as any).name || (workerData as any).username,
-        role: ((workerData as any).role as "admin" | "worker") || "worker",
-        organisationId: (workerData as any).organisation_id,
-        organisationPlan: "free",
-      };
-    }
-  } catch (err: any) {
-    throw err;
-  }
-
-  // Vendors
-  try {
-    const { data: vendorData, error: vendorErr } = await supabase
-      .from("vendors")
-      .select("id, username, password, name, firm_name, organisation_id")
-      .eq("username", u)
-      .eq("password", p)
-      .limit(1)
-      .maybeSingle();
-
-    if (vendorErr) {
-      console.error("DB Error (vendors login):", vendorErr);
-      throw new Error(`Database error: ${vendorErr.message}`);
-    }
-
-    if (vendorData) {
-      return {
-        id: (vendorData as any).id,
-        username: (vendorData as any).username,
-        name: (vendorData as any).name || (vendorData as any).firm_name || (vendorData as any).username,
-        role: "worker",
-        organisationId: (vendorData as any).organisation_id,
-        organisationPlan: "free",
-      };
-    }
-  } catch (err: any) {
-    throw err;
-  }
-
-  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -126,7 +65,7 @@ export async function findUserByPhone(phone: string): Promise<AuthUser | null> {
   try {
     const { data: adminData, error: adminErr } = await supabase
       .from("org_admins")
-      .select("id, username, name, organisation_id, phone, subscription_tier")
+      .select("id, username, name, organisation_id, phone")
       .ilike("phone", `%${digits10}%`)
       .limit(1)
       .maybeSingle();
@@ -146,7 +85,7 @@ export async function findUserByPhone(phone: string): Promise<AuthUser | null> {
         name: (adminData as any).name || (adminData as any).username,
         role: "admin",
         organisationId: adminData.organisation_id,
-        organisationPlan: ((adminData as any).subscription_tier as any) ?? "free",
+        organisationPlan: "free",
         phone,
         isNewUser: false,
       };
@@ -222,6 +161,19 @@ export async function registerUserByPhone(phone: string, payload?: any): Promise
   
   const organisationId = (newOrg as any).id;
 
+  // Hash the password securely using the Edge Function
+  let finalPassword = payload?.password || digits10;
+  const { data: hashData, error: hashError } = await supabase.functions.invoke("hash-password", {
+    body: { password: finalPassword },
+  });
+  if (hashError || !hashData?.hash) {
+    console.error("Failed to hash password during registration:", hashError);
+    // If we fail to hash, we should still allow registration but throw an error?
+    // Depending on strictness, we might throw Error. Let's throw an error to enforce security.
+    throw new Error("Security error: Could not secure password.");
+  }
+  finalPassword = hashData.hash;
+
   // Create the org_admin linked to the new org
   const { data: created, error: adminError } = await supabase
     .from("org_admins")
@@ -229,7 +181,7 @@ export async function registerUserByPhone(phone: string, payload?: any): Promise
       username: payload?.email || digits10,
       name: payload?.orgName || digits10,
       phone: digits10,
-      password: payload?.password || digits10,
+      password: finalPassword,
       organisation_id: organisationId,
     })
     .select("id, username, name, organisation_id")
@@ -243,10 +195,10 @@ export async function registerUserByPhone(phone: string, payload?: any): Promise
   // Seed settings with phone number so it pre-fills
   const { error: settingsError } = await supabase.from("settings").insert({
     organisation_id: organisationId,
-    business_name: payload?.brandName || payload?.orgName || "",
+    shop_name: payload?.brandName || payload?.orgName || "",
     address: payload?.address || "",
     gst_number: payload?.gst || "",
-    email: payload?.email || "",
+    gmail: payload?.email || "",
     phone: digits10,
     whatsapp: digits10,
   });

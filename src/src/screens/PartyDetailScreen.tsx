@@ -25,7 +25,7 @@ import {
   RecentBill,
   BillPayment,
 } from "../services/billingService";
-import { getBillPaymentInfo } from "../utils/billingUtils";
+import { getBillPaymentInfo, calculatePartyBalance } from "../utils/billingUtils";
 import { shareBillViaWhatsApp } from "../utils/invoiceShare";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -226,26 +226,33 @@ export const PartyDetailScreen: React.FC = () => {
 
   // Auto-select first if no param
   const partiesWithBalance = useMemo(() => {
-    const paymentsByBillId = new Map<string, BillPayment[]>();
-    for (const p of payments) {
-      const arr = paymentsByBillId.get(p.billId) || [];
-      arr.push(p);
-      paymentsByBillId.set(p.billId, arr);
-    }
-    const billByCustomer = new Map<string, RecentBill[]>();
+    // Group bills by customer name
+    const billsByCustomer = new Map<string, RecentBill[]>();
     for (const b of bills) {
       const key = (b.customer || "").trim().toLowerCase();
-      if (!key) continue;
-      const arr = billByCustomer.get(key) || [];
-      arr.push(b);
-      billByCustomer.set(key, arr);
+      if (!billsByCustomer.has(key)) billsByCustomer.set(key, []);
+      billsByCustomer.get(key)!.push(b);
     }
+
+    // Build billId → customer name lookup
+    const billIdToCustomer = new Map<string, string>();
+    for (const b of bills) {
+      billIdToCustomer.set(b.id, (b.customer || "").trim().toLowerCase());
+    }
+
+    // Group payments by customer name (via billId → customer lookup)
+    const paymentsByCustomer = new Map<string, BillPayment[]>();
+    for (const p of payments) {
+      const key = billIdToCustomer.get(p.billId) ?? "";
+      if (!paymentsByCustomer.has(key)) paymentsByCustomer.set(key, []);
+      paymentsByCustomer.get(key)!.push(p);
+    }
+
     return customers.map((c) => {
-      const cbills = billByCustomer.get(c.name.trim().toLowerCase()) || [];
-      const remaining = cbills.reduce(
-        (sum, b) => sum + getBillPaymentInfo(b, paymentsByBillId.get(b.id) || []).remaining,
-        0
-      );
+      const key = (c.name || "").trim().toLowerCase();
+      const cbills = billsByCustomer.get(key) || [];
+      const cpayments = paymentsByCustomer.get(key) || [];
+      const remaining = calculatePartyBalance(c.name, cbills, cpayments, [c], true);
       return { customer: c, remainingTotal: remaining };
     });
   }, [customers, bills, payments]);
@@ -286,9 +293,19 @@ export const PartyDetailScreen: React.FC = () => {
   }, [payments, customerBills]);
 
   const outstanding = useMemo(
-    () => customerBills.reduce((sum, b) => sum + getBillPaymentInfo(b, payments).remaining, 0),
-    [customerBills, payments]
+    () => {
+      if (!selected) return 0;
+      return calculatePartyBalance(
+        selected.customer.name,
+        customerBills,          // already filtered to this customer
+        customerPayments,       // already filtered to this customer
+        customers,
+        true                    // preFiltered=true — skip inner name scan
+      );
+    },
+    [customerBills, customerPayments, selected, customers]
   );
+
 
   const totalBusiness = useMemo(
     () => customerBills.reduce((sum, b) => sum + (b.total || 0), 0),
@@ -438,27 +455,32 @@ export const PartyDetailScreen: React.FC = () => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color="#1a1a1a" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Parties</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity style={styles.headerBtn} onPress={load}>
-              <Ionicons name="refresh-outline" size={18} color="#4F46E5" />
-            </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {selected ? selected.customer.name : 'Party'}
+            </Text>
+            {selected && outstanding !== 0 && (
+              <Text style={{ fontSize: 11, color: outstanding > 0 ? '#F59E0B' : '#059669', fontFamily: 'Inter_500Medium' }}>
+                {outstanding > 0 ? `To Collect: ${fmtShort(outstanding)}` : `Advance: ${fmtShort(Math.abs(outstanding))}`}
+              </Text>
+            )}
           </View>
+          <TouchableOpacity style={styles.headerBtn} onPress={load}>
+            <Ionicons name="refresh-outline" size={18} color="#4F46E5" />
+          </TouchableOpacity>
         </View>
       )}
 
+
       <View style={styles.body}>
-        {/* ══ LEFT PANEL — Party List ══════════════════════════════════════ */}
-        <View style={styles.leftPanel}>
-          {/* Web-only: top row with Add Party + Refresh */}
-          {Platform.OS === 'web' && (
+        {/* ══ LEFT PANEL — Party List (WEB ONLY) ═══════════════════════════ */}
+        {Platform.OS === 'web' && (
+          <View style={styles.leftPanel}>
+            {/* Web-only: top row with Add Party + Refresh */}
             <View style={styles.leftPanelHeader}>
               <Text style={styles.leftPanelTitle}>Parties</Text>
               <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TouchableOpacity
-                  style={styles.leftPanelBtn}
-                  onPress={load}
-                >
+                <TouchableOpacity style={styles.leftPanelBtn} onPress={load}>
                   <Ionicons name="refresh-outline" size={14} color="#4F46E5" />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -470,56 +492,54 @@ export const PartyDetailScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
             </View>
-          )}
-          {/* Summary pills */}
-          <View style={styles.summaryPills}>
-            <View style={styles.pill}>
-              <Text style={styles.pillIcon}>↑</Text>
-              <View>
-                <Text style={styles.pillAmt}>{fmtShort(partiesWithBalance.filter(x => x.remainingTotal > 0).reduce((s, x) => s + x.remainingTotal, 0))}</Text>
-                <Text style={styles.pillLabel}>To Collect</Text>
+            {/* Summary pills */}
+            <View style={styles.summaryPills}>
+              <View style={styles.pill}>
+                <Text style={styles.pillIcon}>↑</Text>
+                <View>
+                  <Text style={styles.pillAmt}>{fmtShort(partiesWithBalance.filter(x => x.remainingTotal > 0).reduce((s, x) => s + x.remainingTotal, 0))}</Text>
+                  <Text style={styles.pillLabel}>To Collect</Text>
+                </View>
+              </View>
+              <View style={[styles.pill, { backgroundColor: "#FFF7ED" }]}>
+                <Text style={[styles.pillIcon, { color: "#D97706" }]}>↓</Text>
+                <View>
+                  <Text style={[styles.pillAmt, { color: "#D97706" }]}>{fmtShort(Math.abs(partiesWithBalance.filter(x => x.remainingTotal < 0).reduce((s, x) => s + x.remainingTotal, 0)))}</Text>
+                  <Text style={styles.pillLabel}>To Pay</Text>
+                </View>
               </View>
             </View>
-            <View style={[styles.pill, { backgroundColor: "#FFF7ED" }]}>
-              <Text style={[styles.pillIcon, { color: "#D97706" }]}>↓</Text>
-              <View>
-                <Text style={[styles.pillAmt, { color: "#D97706" }]}>{fmtShort(Math.abs(partiesWithBalance.filter(x => x.remainingTotal < 0).reduce((s, x) => s + x.remainingTotal, 0)))}</Text>
-                <Text style={styles.pillLabel}>To Pay</Text>
-              </View>
+            {/* Search */}
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={15} color="#9CA3AF" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search Party"
+                placeholderTextColor="#9CA3AF"
+                value={search}
+                onChangeText={setSearch}
+              />
             </View>
-          </View>
-
-          {/* Search */}
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={15} color="#9CA3AF" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search Party"
-              placeholderTextColor="#9CA3AF"
-              value={search}
-              onChangeText={setSearch}
+            {/* List */}
+            <FlatList
+              data={filteredParties}
+              keyExtractor={(x) => x.customer.id}
+              renderItem={({ item }) => (
+                <PartyListItem
+                  item={item}
+                  selected={item.customer.id === selectedId}
+                  onPress={() => { setSelectedId(item.customer.id); setTab("transactions"); }}
+                />
+              )}
+              ListEmptyComponent={<Text style={{ color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 24, fontFamily: "Inter_400Regular" }}>No parties</Text>}
+              contentContainerStyle={{ paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
             />
           </View>
+        )}
 
-          {/* List */}
-          <FlatList
-            data={filteredParties}
-            keyExtractor={(x) => x.customer.id}
-            renderItem={({ item }) => (
-              <PartyListItem
-                item={item}
-                selected={item.customer.id === selectedId}
-                onPress={() => { setSelectedId(item.customer.id); setTab("transactions"); }}
-              />
-            )}
-            ListEmptyComponent={<Text style={{ color: "#9CA3AF", fontSize: 12, textAlign: "center", marginTop: 24, fontFamily: "Inter_400Regular" }}>No parties</Text>}
-            contentContainerStyle={{ paddingBottom: 20 }}
-            showsVerticalScrollIndicator={false}
-          />
-        </View>
-
-        {/* ══ DIVIDER ══════════════════════════════════════════════════════ */}
-        <View style={styles.divider} />
+        {/* ══ DIVIDER (web only) ═══════════════════════════════════════════ */}
+        {Platform.OS === 'web' && <View style={styles.divider} />}
 
         {/* ══ RIGHT PANEL — Detail ═════════════════════════════════════════ */}
         {!selected ? (
@@ -529,108 +549,118 @@ export const PartyDetailScreen: React.FC = () => {
           </View>
         ) : (
           <View style={{ flex: 1 }}>
-            {/* ── Right header ──────────────────────────────────────────── */}
-            <View style={styles.detailHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.detailName} numberOfLines={1}>{selected.customer.name}</Text>
-                {outstanding !== 0 && (
-                  <Text style={{ fontSize: 12, color: outstanding > 0 ? "#F59E0B" : "#059669", fontFamily: "Inter_500Medium" }}>
-                    {outstanding > 0 ? `To Collect: ${fmt(outstanding)}` : `Advance: ${fmt(Math.abs(outstanding))}`}
-                  </Text>
-                )}
-              </View>
-              {/* Action buttons */}
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                {/* Create dropdown button */}
-                <View>
-                  <TouchableOpacity
-                    style={styles.createBtn}
-                    onPress={() => setShowCreateMenu(!showCreateMenu)}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons name="add-circle-outline" size={15} color="#4F46E5" />
-                    <Text style={styles.createBtnText}>Create Sales Invoice</Text>
-                    <Ionicons name={showCreateMenu ? "chevron-up" : "chevron-down"} size={13} color="#4F46E5" />
-                  </TouchableOpacity>
-                  {/* Modal-based dropdown — renders in true portal, no z-index issues */}
-                  <Modal
-                    visible={showCreateMenu}
-                    transparent
-                    animationType="none"
-                    onRequestClose={() => setShowCreateMenu(false)}
-                    statusBarTranslucent
-                  >
-                    <View style={{ flex: 1 }}>
-                      {/* Invisible full-screen backdrop — closes menu on outside click */}
-                      <TouchableOpacity
-                        style={StyleSheet.absoluteFillObject}
-                        activeOpacity={1}
-                        onPress={() => setShowCreateMenu(false)}
-                      />
-                      {/* Dropdown box — positioned absolutely AFTER backdrop so paint on top */}
-                      <View style={{
-                        position: 'absolute', top: 48, right: 12,
-                        backgroundColor: '#fff', borderRadius: 10,
-                        borderWidth: 1, borderColor: '#E5E7EB',
-                        shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 14,
-                        shadowOffset: { width: 0, height: 6 }, elevation: 20,
-                        minWidth: 200, paddingVertical: 4,
-                      }}>
-                        {CREATE_OPTIONS.map((opt) => (
-                          <TouchableOpacity
-                            key={opt.key}
-                            style={styles.dropdownItem}
-                            onPress={() => handleCreateOption(opt.key)}
-                            activeOpacity={0.75}
-                          >
-                            <Ionicons name={opt.icon} size={14} color="#374151" />
-                            <Text style={styles.dropdownItemText}>{opt.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  </Modal>
+            {/* -- Right header: web shows name+actions; mobile shows compact strip -- */}
+            {Platform.OS === 'web' ? (
+              <View style={styles.detailHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.detailName} numberOfLines={1}>{selected.customer.name}</Text>
+                  {outstanding !== 0 && (
+                    <Text style={{ fontSize: 12, color: outstanding > 0 ? "#F59E0B" : "#059669", fontFamily: "Inter_500Medium" }}>
+                      {outstanding > 0 ? `To Collect: ${fmt(outstanding)}` : `Advance: ${fmt(Math.abs(outstanding))}`}
+                    </Text>
+                  )}
                 </View>
-                <TouchableOpacity
-                  style={styles.iconBtn}
-                  onPress={() => navigation.navigate("Parties", { openEdit: selected.customer.id })}
-                >
-                  <Ionicons name="create-outline" size={16} color="#374151" />
-                  <Text style={styles.iconBtnText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.iconBtn, { borderColor: "#FCA5A5" }]} onPress={handleDelete}>
-                  <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                </TouchableOpacity>
+                <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <View>
+                    <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreateMenu(!showCreateMenu)} activeOpacity={0.85}>
+                      <Ionicons name="add-circle-outline" size={15} color="#4F46E5" />
+                      <Text style={styles.createBtnText}>Create Sales Invoice</Text>
+                      <Ionicons name={showCreateMenu ? "chevron-up" : "chevron-down"} size={13} color="#4F46E5" />
+                    </TouchableOpacity>
+                    <Modal visible={showCreateMenu} transparent animationType="none" onRequestClose={() => setShowCreateMenu(false)} statusBarTranslucent>
+                      <View style={{ flex: 1 }}>
+                        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setShowCreateMenu(false)} />
+                        <View style={{ position: 'absolute', top: 48, right: 12, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 20, minWidth: 200, paddingVertical: 4 }}>
+                          {CREATE_OPTIONS.map((opt) => (
+                            <TouchableOpacity key={opt.key} style={styles.dropdownItem} onPress={() => handleCreateOption(opt.key)} activeOpacity={0.75}>
+                              <Ionicons name={opt.icon} size={14} color="#374151" />
+                              <Text style={styles.dropdownItemText}>{opt.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    </Modal>
+                  </View>
+                  <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate("Parties", { openEdit: selected.customer.id })}>
+                    <Ionicons name="create-outline" size={16} color="#374151" />
+                    <Text style={styles.iconBtnText}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.iconBtn, { borderColor: "#FCA5A5" }]} onPress={handleDelete}>
+                    <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-
-            {/* ── Tabs ──────────────────────────────────────────────────── */}
-            <View style={styles.tabBar}>
-              {(
-                [
-                  { key: "transactions", label: "Transactions", icon: "swap-horizontal-outline" as const },
-                  { key: "profile", label: "Profile", icon: "person-outline" as const },
-                  { key: "ledger", label: "Ledger (Statement)", icon: "newspaper-outline" as const },
-                  { key: "itemwise", label: "Item Wise Report", icon: "bar-chart-outline" as const },
-                ] as const
-              ).map((t) => (
-                <TouchableOpacity
-                  key={t.key}
-                  onPress={() => setTab(t.key)}
-                  style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}
-                >
-                  <Ionicons
-                    name={t.icon}
-                    size={13}
-                    color={tab === t.key ? "#4F46E5" : "#6B7280"}
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>
-                    {t.label}
-                  </Text>
+            ) : (
+              /* Mobile -- compact action strip */
+              <View style={styles.mobileActionStrip}>
+                <TouchableOpacity style={styles.mobileActionBtn} onPress={() => setShowCreateMenu(true)} activeOpacity={0.85}>
+                  <Ionicons name="add-circle" size={17} color="#4F46E5" />
+                  <Text style={styles.mobileActionBtnText}>Create</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
+                <View style={styles.mobileActionDivider} />
+                <TouchableOpacity style={styles.mobileActionBtn} onPress={() => navigation.navigate("Parties", { openEdit: selected.customer.id })}>
+                  <Ionicons name="create-outline" size={17} color="#374151" />
+                  <Text style={[styles.mobileActionBtnText, { color: '#374151' }]}>Edit Party</Text>
+                </TouchableOpacity>
+                <View style={styles.mobileActionDivider} />
+                <TouchableOpacity style={styles.mobileActionBtn} onPress={handleDelete}>
+                  <Ionicons name="trash-outline" size={17} color="#DC2626" />
+                  <Text style={[styles.mobileActionBtnText, { color: '#DC2626' }]}>Delete</Text>
+                </TouchableOpacity>
+                {/* Bottom sheet create menu */}
+                <Modal visible={showCreateMenu} transparent animationType="slide" onRequestClose={() => setShowCreateMenu(false)} statusBarTranslucent>
+                  <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+                    <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={() => setShowCreateMenu(false)} />
+                    <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 8, paddingBottom: 32 }}>
+                      <View style={{ width: 40, height: 4, backgroundColor: '#E5E7EB', borderRadius: 2, alignSelf: 'center', marginVertical: 12 }} />
+                      <Text style={{ fontSize: 15, fontFamily: 'Inter_700Bold', color: '#111827', paddingHorizontal: 20, marginBottom: 8 }}>Create Document</Text>
+                      {CREATE_OPTIONS.map((opt) => (
+                        <TouchableOpacity key={opt.key} style={styles.sheetItem} onPress={() => handleCreateOption(opt.key)} activeOpacity={0.7}>
+                          <View style={styles.sheetItemIcon}><Ionicons name={opt.icon} size={18} color="#4F46E5" /></View>
+                          <Text style={styles.sheetItemText}>{opt.label}</Text>
+                          <Ionicons name="chevron-forward" size={15} color="#9CA3AF" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                </Modal>
+              </View>
+            )}
+
+
+            {/* -- Tabs: scrollable on mobile, inline on web -- */}
+            {Platform.OS !== 'web' ? (
+              <View style={[styles.tabBar, { paddingHorizontal: 0 }]}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, gap: 4 }}>
+                  {([
+                    { key: "transactions", label: "Transactions", icon: "swap-horizontal-outline" as const },
+                    { key: "profile",      label: "Profile",      icon: "person-outline" as const },
+                    { key: "ledger",       label: "Ledger",       icon: "newspaper-outline" as const },
+                    { key: "itemwise",     label: "Item Wise",    icon: "bar-chart-outline" as const },
+                  ] as const).map((t) => (
+                    <TouchableOpacity key={t.key} onPress={() => setTab(t.key)} style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}>
+                      <Ionicons name={t.icon} size={14} color={tab === t.key ? "#4F46E5" : "#6B7280"} style={{ marginRight: 5 }} />
+                      <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>{t.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={styles.tabBar}>
+                {([
+                  { key: "transactions", label: "Transactions",       icon: "swap-horizontal-outline" as const },
+                  { key: "profile",      label: "Profile",            icon: "person-outline" as const },
+                  { key: "ledger",       label: "Ledger (Statement)", icon: "newspaper-outline" as const },
+                  { key: "itemwise",     label: "Item Wise Report",   icon: "bar-chart-outline" as const },
+                ] as const).map((t) => (
+                  <TouchableOpacity key={t.key} onPress={() => setTab(t.key)} style={[styles.tabBtn, tab === t.key && styles.tabBtnActive]}>
+                    <Ionicons name={t.icon} size={13} color={tab === t.key ? "#4F46E5" : "#6B7280"} style={{ marginRight: 4 }} />
+                    <Text style={[styles.tabBtnText, tab === t.key && styles.tabBtnTextActive]}>{t.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
 
             {/* ── Tab content ───────────────────────────────────────────── */}
             <ScrollView
@@ -666,78 +696,96 @@ export const PartyDetailScreen: React.FC = () => {
                     ))}
                   </View>
 
-                  {/* Table header */}
-                  <View style={styles.txnTableHeader}>
-                    <Text style={[styles.txnHeaderCell, { flex: 2 }]}>Date</Text>
-                    <Text style={[styles.txnHeaderCell, { flex: 3 }]}>Transaction Type</Text>
-                    <Text style={[styles.txnHeaderCell, { flex: 3 }]}>Transaction Number</Text>
-                    <Text style={[styles.txnHeaderCell, { flex: 2, textAlign: "right" }]}>Amount ↕</Text>
-                    <Text style={[styles.txnHeaderCell, { flex: 2, textAlign: "right" }]}>Status</Text>
-                  </View>
-
+                  {/* Transaction Cards — mobile-friendly, no cramped table */}
                   {mergedTxns.length === 0 ? (
-                    <Text style={{ color: "#9CA3AF", textAlign: "center", marginTop: 32, fontFamily: "Inter_400Regular" }}>No transactions found.</Text>
+                    <View style={{ alignItems: "center", marginTop: 40, gap: 8 }}>
+                      <Ionicons name="receipt-outline" size={40} color="#D1D5DB" />
+                      <Text style={{ color: "#9CA3AF", fontFamily: "Inter_400Regular", fontSize: 14 }}>No transactions found</Text>
+                    </View>
                   ) : (
                     mergedTxns.map((t, i) => {
                       if (t.type === "bill") {
                         const bill = t.data as RecentBill;
-                        const isPaymentType = ["Payment In", "Sales Return"].includes((bill as any).docType || "");
+                        const docType = (bill as any).docType || "Sales Invoice";
+                        const isPaymentType = ["Payment In", "Sales Return"].includes(docType);
+                        const txnNo = (bill as any).number
+                          ? String((bill as any).number)
+                          : `INV-${bill.id.slice(-6).toUpperCase()}`;
+
                         if (isPaymentType) {
                           return (
-                            <View key={`bill-${bill.id}`} style={[styles.txnTableRow, { backgroundColor: "#F0FDF4" }]}>
-                              <Text style={[styles.txnCell, { flex: 2 }]}>{fmtDate(bill.createdAt)}</Text>
-                              <Text style={[styles.txnCell, { flex: 3, color: "#059669" }]}>{(bill as any).docType}</Text>
-                              <Text style={[styles.txnCell, { flex: 3, color: "#059669" }]}>{bill.id}</Text>
-                              <Text style={[styles.txnCell, { flex: 2, textAlign: "right", color: "#059669", fontFamily: "Inter_600SemiBold" }]}>+{fmt(bill.total)}</Text>
-                              <View style={{ flex: 2, alignItems: "flex-end" }}>
-                                <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: "#DCFCE7", borderRadius: 99 }}>
-                                  <Text style={{ fontSize: 10, color: "#059669", fontFamily: "Inter_600SemiBold" }}>Received</Text>
+                            <View key={`bill-${bill.id}`} style={styles.txnCard}>
+                              {/* Left: icon + info */}
+                              <View style={[styles.txnCardIcon, { backgroundColor: "#DCFCE7" }]}>
+                                <Ionicons name="arrow-down-circle" size={20} color="#059669" />
+                              </View>
+                              <View style={{ flex: 1, gap: 2 }}>
+                                <Text style={styles.txnCardType} numberOfLines={1}>{docType}</Text>
+                                <Text style={styles.txnCardSub} numberOfLines={1}>{txnNo}</Text>
+                                <Text style={styles.txnCardDate}>{fmtDate(bill.createdAt)}</Text>
+                              </View>
+                              {/* Right: amount + badge */}
+                              <View style={{ alignItems: "flex-end", gap: 4 }}>
+                                <Text style={[styles.txnCardAmt, { color: "#059669" }]}>+{fmt(bill.total)}</Text>
+                                <View style={styles.badgeGreen}>
+                                  <Text style={styles.badgeGreenText}>Received</Text>
                                 </View>
                               </View>
                             </View>
                           );
                         }
+
                         const info = getBillPaymentInfo(bill, payments);
-                        const statusColor =
-                          info.status === "Paid" ? "#059669" : info.status === "Partially Paid" ? "#D97706" : "#DC2626";
-                        const statusBg =
-                          info.status === "Paid" ? "#DCFCE7" : info.status === "Partially Paid" ? "#FEF3C7" : "#FEE2E2";
-                        const yr = new Date(bill.createdAt).getFullYear();
-                        const txnNo = (bill as any).number || bill.id;
+                        const statusColor = info.status === "Paid" ? "#059669" : info.status === "Partially Paid" ? "#D97706" : "#DC2626";
+                        const statusBg   = info.status === "Paid" ? "#DCFCE7" : info.status === "Partially Paid" ? "#FEF3C7" : "#FEE2E2";
+                        const iconName   = info.status === "Paid" ? "checkmark-circle" : info.status === "Partially Paid" ? "time" : "alert-circle";
+
                         return (
                           <TouchableOpacity
                             key={`bill-${bill.id}`}
-                            style={styles.txnTableRow}
+                            style={styles.txnCard}
                             onPress={() =>
                               navigation.navigate(
                                 bill.status === "Draft" ? "InvoiceCreate" : "InvoiceDetail",
                                 bill.status === "Draft" ? { editBillId: bill.id } : { billId: bill.id }
                               )
                             }
-                            activeOpacity={0.7}
+                            activeOpacity={0.72}
                           >
-                            <Text style={[styles.txnCell, { flex: 2 }]}>{fmtDate(bill.createdAt)}</Text>
-                            <Text style={[styles.txnCell, { flex: 3, color: "#2563EB" }]}>{(bill as any).docType || "Sales Invoice"}</Text>
-                            <Text style={[styles.txnCell, { flex: 3, color: "#6366F1" }]}>{txnNo}</Text>
-                            <Text style={[styles.txnCell, { flex: 2, textAlign: "right", fontFamily: "Inter_600SemiBold" }]}>{fmt(bill.total)}</Text>
-                            <View style={{ flex: 2, alignItems: "flex-end" }}>
-                              <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: statusBg, borderRadius: 99 }}>
-                                <Text style={{ fontSize: 10, color: statusColor, fontFamily: "Inter_600SemiBold" }}>{info.status}</Text>
+                            <View style={[styles.txnCardIcon, { backgroundColor: "#EFF6FF" }]}>
+                              <Ionicons name="document-text" size={20} color="#2563EB" />
+                            </View>
+                            <View style={{ flex: 1, gap: 2 }}>
+                              <Text style={styles.txnCardType} numberOfLines={1}>{docType}</Text>
+                              <Text style={styles.txnCardSub} numberOfLines={1}>{txnNo}</Text>
+                              <Text style={styles.txnCardDate}>{fmtDate(bill.createdAt)}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", gap: 4 }}>
+                              <Text style={styles.txnCardAmt}>{fmt(bill.total)}</Text>
+                              <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+                                <Ionicons name={iconName as any} size={9} color={statusColor} />
+                                <Text style={[styles.statusBadgeText, { color: statusColor }]}>{info.status}</Text>
                               </View>
                             </View>
                           </TouchableOpacity>
                         );
                       } else {
                         const p = t.data as BillPayment;
+                        const refNo = p.id ? `PMT-${p.id.slice(-6).toUpperCase()}` : (p.method?.toUpperCase() || "CASH");
                         return (
-                          <View key={`pay-${p.id}`} style={[styles.txnTableRow, { backgroundColor: "#F0FDF4" }]}>
-                            <Text style={[styles.txnCell, { flex: 2 }]}>{fmtDate(p.paidAt)}</Text>
-                            <Text style={[styles.txnCell, { flex: 3, color: "#059669" }]}>Payment In</Text>
-                            <Text style={[styles.txnCell, { flex: 3, color: "#059669" }]}>{p.id || p.method?.toUpperCase() || "CASH"}</Text>
-                            <Text style={[styles.txnCell, { flex: 2, textAlign: "right", color: "#059669", fontFamily: "Inter_600SemiBold" }]}>+{fmt(p.amount)}</Text>
-                            <View style={{ flex: 2, alignItems: "flex-end" }}>
-                              <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: "#DCFCE7", borderRadius: 99 }}>
-                                <Text style={{ fontSize: 10, color: "#059669", fontFamily: "Inter_600SemiBold" }}>Received</Text>
+                          <View key={`pay-${p.id}`} style={styles.txnCard}>
+                            <View style={[styles.txnCardIcon, { backgroundColor: "#DCFCE7" }]}>
+                              <Ionicons name="wallet" size={20} color="#059669" />
+                            </View>
+                            <View style={{ flex: 1, gap: 2 }}>
+                              <Text style={styles.txnCardType} numberOfLines={1}>Payment In</Text>
+                              <Text style={styles.txnCardSub} numberOfLines={1}>{refNo} • {p.method?.toUpperCase() || "CASH"}</Text>
+                              <Text style={styles.txnCardDate}>{fmtDate(p.paidAt)}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end", gap: 4 }}>
+                              <Text style={[styles.txnCardAmt, { color: "#059669" }]}>+{fmt(p.amount)}</Text>
+                              <View style={styles.badgeGreen}>
+                                <Text style={styles.badgeGreenText}>Received</Text>
                               </View>
                             </View>
                           </View>
@@ -1131,4 +1179,122 @@ const styles = StyleSheet.create({
   ledgerHeaderRow: { backgroundColor: "#F3F4F6" },
   ledgerHeaderCell: { fontSize: 10, fontFamily: "Inter_700Bold", color: "#374151", textTransform: "uppercase" },
   ledgerCell: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#374151" },
+
+  // ── Transaction Cards (mobile-friendly, replaces cramped table) ──────────
+  txnCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    backgroundColor: "#fff",
+  },
+  txnCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  txnCardType: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#111827",
+  },
+  txnCardSub: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: "#6B7280",
+  },
+  txnCardDate: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    color: "#9CA3AF",
+  },
+  txnCardAmt: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#111827",
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 99,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+  },
+  badgeGreen: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 99,
+    backgroundColor: "#DCFCE7",
+  },
+  badgeGreenText: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    color: "#059669",
+  },
+
+  // ── Mobile action strip (below top header on mobile) ─────────────────────
+  mobileActionStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  mobileActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 6,
+  },
+  mobileActionBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#4F46E5",
+  },
+  mobileActionDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: "#E5E7EB",
+  },
+
+  // ── Bottom sheet (Create options on mobile) ───────────────────────────────
+  sheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F9FAFB",
+    gap: 14,
+  },
+  sheetItemIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetItemText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "#111827",
+  },
 });
+

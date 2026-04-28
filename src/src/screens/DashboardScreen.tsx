@@ -42,7 +42,7 @@ type RecentTask = {
 type WorkerWithCount = { id: string; name: string; completed: number };
 
 export const DashboardScreen: React.FC = () => {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, radius, topColor } = useTheme();
   const navigation = useNavigation<any>();
   const insets = useSafeScreen();
   const { user } = useUser();
@@ -152,15 +152,23 @@ export const DashboardScreen: React.FC = () => {
       const weekSales = billsThisWeek.reduce((s, b) => s + (Number(b.total) || 0), 0);
       const todaySales = billsCreatedToday.reduce((s, b) => s + (Number(b.total) || 0), 0);
 
+      // O(n) — pre-group payments by billId to avoid repeated filtering inside getBillPaymentInfo
+      const paymentsByBillId = new Map<string, typeof billPaymentsData>();
+      for (const p of billPaymentsData) {
+        const key = (p.billId || p.bill_id || "") as string;
+        if (!paymentsByBillId.has(key)) paymentsByBillId.set(key, []);
+        paymentsByBillId.get(key)!.push(p);
+      }
+
       const revenueReceived = billsThisWeek
         .filter((b) => {
-          const info = getBillPaymentInfo(b, billPaymentsData);
+          const info = getBillPaymentInfo(b, paymentsByBillId.get(b.id) ?? []);
           return info.isPaid;
         })
         .reduce((sum, b) => sum + b.total, 0);
       let pendingPayment = 0;
       billsData.forEach((b) => {
-        const info = getBillPaymentInfo(b, billPaymentsData);
+        const info = getBillPaymentInfo(b, paymentsByBillId.get(b.id) ?? []);
         if (!info.isPaid) pendingPayment += info.remaining;
       });
       const todayPayments = billPaymentsData.filter((p) => (p.paidAt || "").toString().startsWith(today));
@@ -184,7 +192,7 @@ export const DashboardScreen: React.FC = () => {
       workerStatsAcc.sort((a, b) => b.completed - a.completed);
 
       const recentBills = billsData.slice(0, 5).map((b) => {
-        const info = getBillPaymentInfo(b, billPaymentsData);
+        const info = getBillPaymentInfo(b, paymentsByBillId.get(b.id) ?? []);
         return {
           id: b.id,
           customer: b.customer,
@@ -382,7 +390,7 @@ export const DashboardScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       {/* Massive Orange Header Background */}
-      <View style={[styles.headerBg, { paddingTop: insets.paddingTop || spacing.lg }]} />
+      <View style={[styles.headerBg, { backgroundColor: topColor || colors.headerGradientStart, paddingTop: insets.paddingTop || spacing.lg }]} />
       
       <SafeAreaView style={styles.safeArea}>
         {loading ? (
@@ -459,7 +467,7 @@ export const DashboardScreen: React.FC = () => {
                   { label: "Record\nPayment", icon: "wallet-outline", color: "#3B82F6", bg: "#EFF6FF", route: "Parties" },
                   { label: "Add\nCustomer", icon: "person-add-outline", color: "#10B981", bg: "#ECFDF5", route: "Parties", params: { openCreate: true } },
                   { label: "Inventory\n", icon: "cube-outline", color: "#8B5CF6", bg: "#F5F3FF", route: "Items" },
-                  { label: "Scan\nPurchase", icon: "scan-outline", color: "#0EA5E9", bg: "#F0F9FF", route: "ScanPurchase" },
+                  { label: "Fast\nBilling", icon: "barcode-outline", color: "#0EA5E9", bg: "#F0F9FF", route: "BarcodeBilling" },
                   { label: "GST\nFinder", icon: "search-outline", color: "#EAB308", bg: "#FEFCE8", route: "GstFinder" },
                   { label: "Delivery\nChallan", icon: "document-outline", color: "#10B981", bg: "#ECFDF5", route: "Challans" },
                   { label: "Stock\nTransfer", icon: "swap-horizontal", color: "#8B5CF6", bg: "#F5F3FF", route: "Transfers" },
@@ -713,13 +721,13 @@ const createStyles = ({
   StyleSheet.create({
     root: {
       flex: 1,
-      backgroundColor: "#F5F6FA",
+      backgroundColor: colors.background,
     },
     headerBg: {
       position: 'absolute',
       width: '100%',
       height: 280, // Massive orange background
-      backgroundColor: '#FF6600',
+      backgroundColor: colors.headerGradientStart || '#FF6600',
       borderBottomLeftRadius: 32,
       borderBottomRightRadius: 32,
     },
@@ -787,7 +795,7 @@ const createStyles = ({
       paddingVertical: 10,
     },
     statCardSmall: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.md,
       padding: spacing.md,
       minWidth: 90,
@@ -808,26 +816,26 @@ const createStyles = ({
       marginBottom: 8,
     },
     statSmallValue: {
-      color: '#111827',
+      color: colors.textPrimary,
       fontSize: 15,
       fontFamily: "Inter_700Bold",
     },
     statSmallLabel: {
-      color: '#6B7280',
+      color: colors.textSecondary,
       fontSize: 11,
       fontFamily: "Inter_500Medium",
       marginTop: 2,
     },
     bodyContent: {
       flex: 1,
-      backgroundColor: '#F7F8FC',
+      backgroundColor: 'transparent',
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,
     },
     sectionTitle: {
-      color: '#111827',
+      color: colors.textPrimary,
       fontSize: 16,
       fontFamily: "Inter_700Bold",
       marginBottom: spacing.md,
@@ -842,7 +850,7 @@ const createStyles = ({
     quickCard: {
       width: '31%', // 3 columns
       aspectRatio: 1,
-      backgroundColor: '#fff',
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.md,
       alignItems: 'center',
       justifyContent: 'center',
@@ -863,14 +871,14 @@ const createStyles = ({
       marginBottom: 8,
     },
     quickLabel: {
-      color: '#111827',
+      color: colors.textPrimary,
       fontSize: 11,
       fontFamily: "Inter_600SemiBold",
       textAlign: 'center',
       lineHeight: 14,
     },
     activityBox: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.lg,
       padding: spacing.md,
       flexDirection: 'row',
@@ -892,15 +900,17 @@ const createStyles = ({
     },
     activityPillVal: {
       fontSize: 14,
+      color: colors.textPrimary,
       fontFamily: "Inter_700Bold",
     },
     activityPillLabel: {
-      fontSize: 10,
-      color: '#6B7280',
+      color: colors.textSecondary,
+      fontSize: 11,
       fontFamily: "Inter_500Medium",
+      marginTop: 2,
     },
     salesTrendBox: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.cardBackground,
       borderRadius: radius.lg,
       padding: spacing.lg,
       shadowColor: "#000",

@@ -25,7 +25,7 @@ import {
   updateCustomer,
 } from "../services/customersService";
 import { fetchBills, fetchBillPayments, RecentBill, BillPayment } from "../services/billingService";
-import { getBillPaymentInfo } from "../utils/billingUtils";
+import { getBillPaymentInfo, calculatePartyBalance } from "../utils/billingUtils";
 
 type FilterType = "paid" | "to_collect" | "all";
 
@@ -105,37 +105,39 @@ export const PartiesScreen: React.FC = () => {
   }, [route.params?.openEdit, customers]);
 
   const partiesWithOutstanding = useMemo(() => {
-    const paymentsByBillId = new Map<string, BillPayment[]>();
-    for (const p of billPayments) {
-      const arr = paymentsByBillId.get(p.billId) || [];
-      arr.push(p);
-      paymentsByBillId.set(p.billId, arr);
-    }
-
-    const billsByCustomerKey = new Map<string, RecentBill[]>();
+    // Group bills by customer name
+    const billsByCustomer = new Map<string, RecentBill[]>();
     for (const b of bills) {
       const key = (b.customer || "").trim().toLowerCase();
-      if (!key) continue;
-      const arr = billsByCustomerKey.get(key) || [];
-      arr.push(b);
-      billsByCustomerKey.set(key, arr);
+      if (!billsByCustomer.has(key)) billsByCustomer.set(key, []);
+      billsByCustomer.get(key)!.push(b);
+    }
+
+    // Build billId → customer name lookup
+    const billIdToCustomer = new Map<string, string>();
+    for (const b of bills) {
+      billIdToCustomer.set(b.id, (b.customer || "").trim().toLowerCase());
+    }
+
+    // Group payments by customer name (via billId → customer lookup)
+    const paymentsByCustomer = new Map<string, BillPayment[]>();
+    for (const p of billPayments) {
+      const key = billIdToCustomer.get(p.billId) ?? "";
+      if (!paymentsByCustomer.has(key)) paymentsByCustomer.set(key, []);
+      paymentsByCustomer.get(key)!.push(p);
     }
 
     return customers.map((c) => {
       const key = (c.name || "").trim().toLowerCase();
-      const cbills = billsByCustomerKey.get(key) || [];
-
-      let remainingTotal = 0;
+      const cbills = billsByCustomer.get(key) || [];
+      const cpayments = paymentsByCustomer.get(key) || [];
+      
+      const remainingTotal = calculatePartyBalance(c.name, cbills, cpayments, [c], true);
+      
       let lastOutstandingDate: string | null = null;
-
       for (const b of cbills) {
-        const info = getBillPaymentInfo(b, paymentsByBillId.get(b.id) || []);
-        remainingTotal += info.remaining;
-        if (info.remaining > 0) {
-          // track most recent outstanding bill date
-          if (!lastOutstandingDate || String(b.createdAt) > String(lastOutstandingDate)) {
-            lastOutstandingDate = b.createdAt;
-          }
+        if (!lastOutstandingDate || String(b.createdAt) > String(lastOutstandingDate)) {
+          lastOutstandingDate = b.createdAt;
         }
       }
 

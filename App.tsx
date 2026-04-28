@@ -15,9 +15,13 @@ import {
   View,
   StyleSheet,
   Platform,
+  Image,
 } from "react-native";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DefaultTheme } from "@react-navigation/native";
 import {
   useFonts,
   Inter_400Regular,
@@ -50,6 +54,7 @@ import { ProductsScreen } from "./src/src/screens/ProductsScreen";
 import { CustomersScreen } from "./src/src/screens/CustomersScreen";
 import { CompanyDetailsScreen } from "./src/src/screens/CompanyDetailsScreen";
 import { UserProfileScreen } from "./src/src/screens/UserProfileScreen";
+import { CustomizationScreen } from "./src/src/screens/CustomizationScreen";
 
 // ── Newer screens (in src/screens/) ──────────────────────────────────────────
 import { EInvoiceScreen } from "./src/screens/EInvoiceScreen";
@@ -71,6 +76,7 @@ import { InvoiceCreateScreen } from "./src/src/screens/InvoiceCreateScreen";
 import { PurchasesScreen } from "./src/src/screens/PurchasesScreen";
 import { AiOrderScreen } from "./src/src/screens/AiOrderScreen";
 import { SubscriptionScreen } from "./src/src/screens/SubscriptionScreen";
+import { BarcodeBillingScreen } from "./src/src/screens/BarcodeBillingScreen";
 
 // ── Context ──────────────────────────────────────────────────────────────────
 import { ThemeProvider, useTheme } from "./src/src/themeContext";
@@ -88,20 +94,16 @@ const ACTION_GROUPS = [
     color: "#2563EB",
     items: [
       { key: "bill",     label: "New Bill",       icon: "receipt-outline",          route: "InvoiceCreate",   params: {} },
+      { key: "fastbill", label: "Fast Billing",     icon: "barcode-outline",        route: "BarcodeBilling",  params: {} },
       { key: "ai",       label: "AI Order",        icon: "sparkles-outline",         route: "AiOrder",         params: {} },
-      { key: "einvoice", label: "E-Invoice",       icon: "document-text-outline",    route: "EInvoice",        params: {} },
-      { key: "ewaybill", label: "E-Way Bill",      icon: "car-outline",              route: "EWayBill",        params: {} },
       { key: "pay",      label: "Record Payment",  icon: "wallet-outline",           route: "Payments",        params: {} },
     ],
   },
-  {
-    title: "GST & Tax",
-    color: "#D97706",
-    items: [
-      { key: "gstfiling", label: "GST Filing",     icon: "folder-outline",           route: "GstFiling",       params: {} },
-      { key: "gstfinder", label: "GST Finder",     icon: "search-circle-outline",    route: "GstFinder",       params: {} },
-    ],
-  },
+  // GST & Tax group — HIDDEN until GST API is integrated
+  // { title: "GST & Tax", color: "#D97706", items: [
+  //   { key: "gstfiling", label: "GST Filing",  icon: "folder-outline",        route: "GstFiling", params: {} },
+  //   { key: "gstfinder", label: "GST Finder",  icon: "search-circle-outline", route: "GstFinder", params: {} },
+  // ] },
   {
     title: "Parties & Items",
     color: "#7C3AED",
@@ -125,7 +127,7 @@ const ACTION_GROUPS = [
 //  TAB NAVIGATOR
 // ─────────────────────────────────────────────────────────────────────────────
 function Tabs() {
-  const { colors, spacing, radius, mode } = useTheme();
+  const { colors, spacing, radius, mode, transparentTabBar } = useTheme();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const idlePulse   = useRef(new Animated.Value(0)).current;
@@ -134,8 +136,16 @@ function Tabs() {
   const sheetAnim   = useRef(new Animated.Value(0)).current;
   const sheetHeight = useRef(new Animated.Value(0)).current;
 
+  const [defaultBilling, setDefaultBilling] = useState("classic");
+
   const openSheet = () => {
     setSheetOpen(true);
+    AsyncStorage.getItem("pm_default_billing_method_v1").then((val) => {
+      if (val === "kirana" || val === "classic") {
+        setDefaultBilling(val);
+      }
+    });
+
     sheetAnim.setValue(0);
     Animated.timing(sheetAnim, {
       toValue: 1, duration: 280,
@@ -182,7 +192,7 @@ function Tabs() {
       <Tab.Navigator
         tabBar={(props) => (
           Platform.OS === "web" ? null :
-          <View>
+          <View style={transparentTabBar ? { position: 'absolute', bottom: 0, left: 0, right: 0 } : undefined}>
             <BottomTabBar {...props} />
 
             {/* ── FAB ─────────────────────────────────────────────── */}
@@ -234,18 +244,31 @@ function Tabs() {
                   <View style={styles.dragHandle} />
                   <Text style={[styles.sheetTitle, { color: colors.textPrimary ?? "#111" }]}>Quick Actions</Text>
 
-                  {ACTION_GROUPS.map((group) => (
+                  {ACTION_GROUPS.map((group) => {
+                    let itemsToRender = [...group.items];
+                    if (group.title === "Billing" && defaultBilling === "kirana") {
+                      // Swap Kirana to first position if selected
+                      const billIdx = itemsToRender.findIndex(i => i.key === "bill");
+                      const fastIdx = itemsToRender.findIndex(i => i.key === "fastbill");
+                      if (billIdx >= 0 && fastIdx >= 0) {
+                        const temp = itemsToRender[billIdx];
+                        itemsToRender[billIdx] = itemsToRender[fastIdx];
+                        itemsToRender[fastIdx] = temp;
+                      }
+                    }
+
+                    return (
                     <View key={group.title} style={{ marginBottom: 18 }}>
                       <Text style={[styles.groupTitle, { color: group.color }]}>{group.title}</Text>
                       <View style={styles.actionRow}>
-                        {group.items.map((a) => (
+                        {itemsToRender.map((a) => (
                           <TouchableOpacity
                             key={a.key}
                             activeOpacity={0.82}
                             style={[
                               styles.actionCard,
                               {
-                                backgroundColor: "#F8FAFF",
+                                backgroundColor: colors.cardBackground,
                                 borderColor: group.color + "26",
                               },
                             ]}
@@ -266,11 +289,12 @@ function Tabs() {
                         ))}
                       </View>
                     </View>
-                  ))}
+                  );
+                 })}
 
                   <TouchableOpacity
                     activeOpacity={0.85}
-                    style={[styles.cancelBtn, { backgroundColor: "#F3F4F6", borderColor: colors.cardBorder ?? "#E5E7EB" }]}
+                    style={[styles.cancelBtn, { backgroundColor: colors.surface, borderColor: colors.cardBorder ?? "#E5E7EB" }]}
                     onPress={closeSheet}
                   >
                     <Text style={[styles.cancelText, { color: colors.textSecondary ?? "#6B7280" }]}>Cancel</Text>
@@ -287,18 +311,22 @@ function Tabs() {
           headerShown: false,
           tabBarActiveTintColor: colors.tabBarActive ?? colors.accentOrange ?? "#FF6600",
           tabBarInactiveTintColor: colors.tabBarInactive ?? colors.textMuted ?? "#6B7B8E",
+          tabBarBackground: transparentTabBar ? () => (
+            <BlurView intensity={80} tint={mode === 'dark' ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          ) : undefined,
           tabBarStyle: {
-            backgroundColor: colors.tabBarBg ?? "#FFFFFF",
-            borderTopWidth: 1,
+            backgroundColor: transparentTabBar ? "transparent" : (colors.tabBarBg ?? "#FFFFFF"),
+            position: transparentTabBar ? "absolute" : undefined,
+            borderTopWidth: transparentTabBar ? 0 : 1,
             borderTopColor: colors.cardBorder ?? "#E2E8F0",
             height: 68,
             paddingBottom: 10,
             paddingTop: 8,
-            elevation: 8,
-            shadowColor: "#000",
+            elevation: transparentTabBar ? 0 : 8,
+            shadowColor: transparentTabBar ? "transparent" : "#000",
             shadowOffset: { width: 0, height: -2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 10,
+            shadowOpacity: transparentTabBar ? 0 : 0.05,
+            shadowRadius: transparentTabBar ? 0 : 10,
           },
           tabBarLabelStyle: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
         }}
@@ -325,11 +353,11 @@ function Tabs() {
           listeners={{ tabPress: (e) => { e.preventDefault(); onFabPress(); } }}
         />
         <Tab.Screen
-          name="GstSuite"
-          component={GstSuiteScreen}
+          name="Tasks"
+          component={TasksScreen}
           options={{
-            tabBarLabel: "GST Suite",
-            tabBarIcon: ({ color, size }) => <Ionicons name="document-attach" size={size} color={color} />,
+            tabBarLabel: "Tasks",
+            tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
           }}
         />
         <Tab.Screen
@@ -382,6 +410,7 @@ function MainStack() {
         <Stack.Screen name="UserProfile"          component={UserProfileScreen} />
         <Stack.Screen name="ManageUser"           component={ManageUserScreen} />
         <Stack.Screen name="Settings"             component={SettingsScreen} />
+        <Stack.Screen name="Customization"        component={CustomizationScreen} />
         <Stack.Screen name="Subscription"         component={SubscriptionScreen} />
         <Stack.Screen name="Help"                 component={HelpScreen} />
 
@@ -394,6 +423,7 @@ function MainStack() {
         <Stack.Screen name="ScanPurchase"         component={ScanPurchaseScreen} />
         <Stack.Screen name="ScanPurchasePreview"  component={ScanPurchasePreviewScreen} />
         <Stack.Screen name="PartyDetail"          component={PartyDetailScreen} />
+        <Stack.Screen name="BarcodeBilling"       component={BarcodeBillingScreen} />
         <Stack.Screen name="RecoverDeleted"       component={RecoverDeletedScreen} />
         <Stack.Screen name="Products"             component={ProductsScreen} />
         <Stack.Screen name="OtpVerify"            component={OtpVerifyScreen} />
@@ -437,17 +467,78 @@ const LoginScreenWrapper = ({ route, navigation }: any) => {
   return <LoginScreen onLogin={setUser} />;
 };
 
+const RootNavigator = () => {
+  const { user } = useUser();
+  const { wallpaperUri, wallpaperType, colors } = useTheme();
+
+  // Create video player (only initializes properly if there's a valid uri)
+  const player = useVideoPlayer(wallpaperUri, player => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {wallpaperUri && wallpaperType === "image" && (
+        <Image source={{ uri: wallpaperUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      )}
+      {wallpaperUri && wallpaperType === "video" && (
+        <VideoView
+          style={StyleSheet.absoluteFill}
+          player={player}
+          contentFit="cover"
+        />
+      )}
+      <NavigationContainer 
+        ref={navigationRef} 
+        theme={{ ...DefaultTheme, colors: { ...DefaultTheme.colors, background: 'transparent' } }}
+      >
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+          {user ? (
+            user.organisationId ? (
+              <Stack.Screen name="Main" component={MainStack} />
+            ) : (
+              <Stack.Screen name="Incomplete" component={IncompleteRegistrationScreen} />
+            )
+          ) : (
+            <>
+              <Stack.Screen name="Register"  component={RegisterScreen} />
+              <Stack.Screen name="Login" component={LoginScreenWrapper} />
+              <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </View>
+  );
+};
+
 export default function App() {
   const [user, setUser]       = useState<User>(null);
   const [hydrated, setHydrated] = useState(false);
   const USER_KEY = "app_user_v1";
 
-  const [fontsLoaded] = useFonts({
+  // Capture font error — if fonts fail, we still let the app through
+  const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    // Bundle Ionicons locally so it doesn't need a network download
+    // This prevents the ExpoAsset.downloadAsync error on tunnel
+    ...Ionicons.font,
   });
+
+  // Safety timeout: if fonts don't load in 5s, proceed anyway (fallback to system fonts)
+  const [fontTimeout, setFontTimeout] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setFontTimeout(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Treat fonts as "ready" if loaded, errored, or timed out
+  const fontsReady = fontsLoaded || !!fontError || fontTimeout;
 
   useEffect(() => {
     (async () => {
@@ -483,7 +574,7 @@ export default function App() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!fontsLoaded || !hydrated) {
+    if (!fontsReady || !hydrated) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 300,
@@ -510,9 +601,9 @@ export default function App() {
 
       return () => animation.stop();
     }
-  }, [fontsLoaded, hydrated, fadeAnim, pulseAnim]);
+  }, [fontsReady, hydrated, fadeAnim, pulseAnim]);
 
-  if (!fontsLoaded || !hydrated) {
+  if (!fontsReady || !hydrated) {
     return (
       <View style={{ flex: 1, backgroundColor: "#0F1117", justifyContent: "center", alignItems: "center" }}>
         <Animated.View style={{ opacity: fadeAnim, alignItems: "center", transform: [{ scale: pulseAnim }] }}>
@@ -530,23 +621,7 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <UserProvider value={{ user, setUser }}>
-          <NavigationContainer ref={navigationRef}>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
-              {user ? (
-                user.organisationId ? (
-                  <Stack.Screen name="Main" component={MainStack} />
-                ) : (
-                  <Stack.Screen name="Incomplete" component={IncompleteRegistrationScreen} />
-                )
-              ) : (
-                <>
-                  <Stack.Screen name="Register"  component={RegisterScreen} />
-                  <Stack.Screen name="Login" component={LoginScreenWrapper} />
-                  <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
-                </>
-              )}
-            </Stack.Navigator>
-          </NavigationContainer>
+          <RootNavigator />
         </UserProvider>
       </ThemeProvider>
     </SafeAreaProvider>

@@ -89,10 +89,10 @@ export function NotificationsScreen() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   const dark = mode === "dark";
-  const bg   = dark ? "#0F1117" : "#F0F4FF";
-  const card = dark ? "#1C1C2E" : "#FFFFFF";
-  const txt  = dark ? "#F1F5F9" : "#111827";
-  const sub  = dark ? "#94A3B8" : "#6B7280";
+  const bg   = colors.background;
+  const card = colors.cardBackground;
+  const txt  = colors.textPrimary;
+  const sub  = colors.textSecondary;
 
   const markAllRead = () => setNotifs((n) => n.map((x) => ({ ...x, read: true })));
   const markRead    = (id: string) => setNotifs((n) => n.map((x) => x.id === id ? { ...x, read: true } : x));

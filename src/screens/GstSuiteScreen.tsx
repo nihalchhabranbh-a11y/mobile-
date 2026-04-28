@@ -57,10 +57,10 @@ export function GstSuiteScreen() {
   const isFocused = useIsFocused();
   
   const dark = mode === "dark";
-  const bg   = dark ? "#0F1117" : "#F0F4FF";
-  const card = dark ? "#1C1C2E" : "#FFFFFF";
-  const txt  = dark ? "#F1F5F9" : "#111827";
-  const sub  = dark ? "#94A3B8" : "#6B7280";
+  const bg   = colors.background;
+  const card = colors.cardBackground;
+  const txt  = colors.textPrimary;
+  const sub  = colors.textSecondary;
 
   const [stats, setStats] = useState([
     { label: "Invoices This Month", value: "-",  icon: "receipt",         color: "#2563EB" },

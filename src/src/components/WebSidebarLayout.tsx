@@ -11,19 +11,18 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../userContext";
 import { useTheme } from "../themeContext";
-import { navigationRef } from "../../../App";   // root-level ref — can navigate to ANY screen
-
-// Safe navigate helper — works from any context
-function navTo(route: string, params?: object) {
-  if (navigationRef.isReady()) {
-    navigationRef.navigate(route as any, params as any);
-  }
-}
+import { useNavigation } from "@react-navigation/native";
 
 export const WebSidebarLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { width } = useWindowDimensions();
   const { user } = useUser();
   const { colors } = useTheme();
+  const navigation = useNavigation<any>();
+
+  // Safe navigate helper
+  function navTo(route: string, params?: object) {
+    navigation.navigate(route, params);
+  }
 
   // Only render Sidebar on Web if screen is wide enough
   if (Platform.OS !== "web" || width < 768) {

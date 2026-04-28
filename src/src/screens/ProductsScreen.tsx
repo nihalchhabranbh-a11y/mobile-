@@ -160,6 +160,7 @@ export const ProductsScreen: React.FC = () => {
           description: description.trim() || null,
           keywords: keywords.trim() || null,
           active,
+          organisationId: user?.organisationId ?? undefined,
         });
         if (created) setProducts((prev) => [created, ...prev]);
       }

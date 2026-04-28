@@ -13,14 +13,16 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useTheme } from "../themeContext";
 import { useUser } from "../userContext";
 import { loadBrand, saveBrand, Brand } from "../services/settingsService";
 import { supabase } from "../services/supabaseClient";
 import { useSafeScreen } from "../hooks/useSafeScreen";
 
+
 export const SettingsScreen: React.FC = () => {
-  const { colors, spacing, radius, mode, toggleTheme } = useTheme();
+  const { colors, spacing, radius, mode, toggleTheme, primaryColor, setPrimaryColor, wallpaperUri, wallpaperType, setWallpaper } = useTheme();
   const { user } = useUser();
   const navigation = useNavigation<any>();
   const insets = useSafeScreen();
@@ -79,15 +81,17 @@ export const SettingsScreen: React.FC = () => {
       const b = await loadBrand(user?.organisationId ?? null);
       setBrand(b);
       setWaLoading(true);
-      const [tpl, rem] = await Promise.all([
+      const [tpl, rem, billMethod] = await Promise.all([
         AsyncStorage.getItem(WA_TEMPLATE_KEY),
         AsyncStorage.getItem(WA_REMINDERS_KEY),
+        AsyncStorage.getItem("pm_default_billing_method_v1"),
       ]);
       setWaTemplate(
         tpl ||
           "*Invoice from {shopName}*\n\nHi {customerName},\nYour invoice *{invoiceId}* is ready.\nTotal: {total}\nStatus: {status}\n\nView: {invLink}\nPay: {payLink}\n\nThank you,\n{shopName}"
       );
       setWaRemindersEnabled(rem === "1");
+      setDefaultBillingMethod(billMethod === "kirana" ? "kirana" : "classic");
     } catch (e) {
       console.warn("[Settings] load failed", e);
     } finally {
@@ -95,6 +99,8 @@ export const SettingsScreen: React.FC = () => {
       setWaLoading(false);
     }
   }, [user?.organisationId]);
+
+  const [defaultBillingMethod, setDefaultBillingMethod] = useState<"classic" | "kirana">("classic");
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -126,19 +132,41 @@ export const SettingsScreen: React.FC = () => {
     }
     try {
       setSavingPassword(true);
+
+      // Hash the password via Edge Function
+      const { data: hashData, error: hashErr } = await supabase.functions.invoke("hash-password", {
+        body: { password: newPassword },
+      });
+
+      if (hashErr || !hashData?.hash) {
+        throw new Error(hashErr?.message || "Failed to hash password");
+      }
+
+      const hashedPassword = hashData.hash;
+
       // Update org_admins by username (single-org: one admin per username)
       const { error } = await supabase
         .from("org_admins")
-        .update({ password: newPassword })
+        .update({ password: hashedPassword })
         .eq("username", user.username);
+      
       if (error) {
         // Fallback: try workers table
         const { error: err2 } = await supabase
           .from("workers")
-          .update({ password: newPassword })
+          .update({ password: hashedPassword })
           .eq("username", user.username);
-        if (err2) throw err2;
+        
+        if (err2) {
+          // Fallback: try vendors table
+          const { error: err3 } = await supabase
+            .from("vendors")
+            .update({ password: hashedPassword })
+            .eq("username", user.username);
+          if (err3) throw err3;
+        }
       }
+
       setNewPassword("");
       setConfirmPassword("");
       Alert.alert("Done", "Password updated.");
@@ -262,6 +290,20 @@ export const SettingsScreen: React.FC = () => {
               <View style={[styles.toggleKnob, mode === "dark" && styles.toggleKnobOn]} />
             </View>
           </TouchableOpacity>
+
+
+          <View style={{ marginTop: spacing.md, borderRadius: radius.md, overflow: 'hidden', borderWidth: 1, borderColor: colors.cardBorder }}>
+            <Row
+              icon="color-palette-outline"
+              label="Advanced Tools (Glassmorphism & Colors)"
+              onPress={() => navigation.navigate("Customization")}
+              styles={styles}
+              colors={colors}
+              isLast
+            />
+          </View>
+
+
         </View>
 
         <View
@@ -302,6 +344,34 @@ export const SettingsScreen: React.FC = () => {
           </View>
         </View>
 
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Dashboard Customization</Text>
+          <Text style={styles.label}>Default Quick Action (Billing)</Text>
+          <View style={styles.printerRow}>
+            <TouchableOpacity
+              style={[styles.printerOption, defaultBillingMethod === "classic" && styles.printerOptionActive]}
+              onPress={async () => {
+                setDefaultBillingMethod("classic");
+                try {
+                  await AsyncStorage.setItem("pm_default_billing_method_v1", "classic");
+                } catch (e) {}
+              }}
+            >
+              <Text style={[styles.printerOptionText, defaultBillingMethod === "classic" && styles.printerOptionTextActive]}>Classic Bill</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.printerOption, defaultBillingMethod === "kirana" && styles.printerOptionActive]}
+              onPress={async () => {
+                setDefaultBillingMethod("kirana");
+                try {
+                  await AsyncStorage.setItem("pm_default_billing_method_v1", "kirana");
+                } catch (e) {}
+              }}
+            >
+              <Text style={[styles.printerOptionText, defaultBillingMethod === "kirana" && styles.printerOptionTextActive]}>Fast Billing (Kirana)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
 
         <View
@@ -513,4 +583,9 @@ const createStyles = ({
     printerOptionActive: { borderColor: colors.accentBlue, backgroundColor: colors.accentBlue + "18" },
     printerOptionText: { color: colors.textSecondary, fontSize: 14 },
     printerOptionTextActive: { color: colors.accentBlue, fontWeight: "600" },
+    colorSwatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: "transparent" },
+    colorSwatchActive: { borderColor: colors.textPrimary, transform: [{ scale: 1.1 }] },
+    wallpaperButtons: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs, flexWrap: "wrap" },
+    wallpaperBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.cardBackground },
+    wallpaperBtnText: { color: colors.textPrimary, fontSize: 13, fontFamily: "Inter_500Medium" }
   });

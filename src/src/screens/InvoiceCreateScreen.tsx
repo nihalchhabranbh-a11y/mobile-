@@ -295,7 +295,7 @@ export const InvoiceCreateScreen: React.FC = () => {
                       {filteredProducts.map((p) => (
                         <TouchableOpacity key={p.id} style={{ paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border }} onPress={() => selectProduct(p, i)}>
                           <Text style={{ color: C.bright, fontSize: 14, fontWeight: "600" }}>{p.name}</Text>
-                          <Text style={{ color: C.muted, fontSize: 12 }}>₹{p.defaultRate ?? 0} {p.taxRate ? `(+${p.taxRate}% GST)` : ''}</Text>
+                          <Text style={{ color: C.muted, fontSize: 12 }}>₹{p.defaultRate ?? 0} {p.taxRate ? `(+${p.taxRate}% Tax)` : ''}</Text>
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
@@ -341,11 +341,13 @@ export const InvoiceCreateScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* GST Toggle */}
+          {/* GST Toggle — HIDDEN until GST API is integrated
           <TouchableOpacity style={{ backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, flexDirection: "row", justifyContent: "space-between", elevation: 1 }} onPress={() => setGstEnabled(!gstEnabled)}>
             <Text style={{ color: C.bright, fontSize: 14, fontWeight: "600" }}>Calculate GST</Text>
             <Ionicons name={gstEnabled ? "checkbox" : "square-outline"} size={22} color={gstEnabled ? C.orange : C.muted} />
           </TouchableOpacity>
+          */}
+
 
           {/* Totals */}
           <View style={{ backgroundColor: C.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border, elevation: 1 }}>

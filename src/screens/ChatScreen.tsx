@@ -52,11 +52,14 @@ export function ChatScreen() {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   const dark = mode === "dark";
-  const bg   = dark ? "#0F1117" : "#F0F4FF";
-  const card = dark ? "#1C1C2E" : "#FFFFFF";
-  const txt  = dark ? "#F1F5F9" : "#111827";
-  const sub  = dark ? "#94A3B8" : "#6B7280";
+  const bg   = colors.background;
+  const card = colors.cardBackground;
+  const txt  = colors.textPrimary;
+  const sub  = colors.textSecondary;
   const myId = user?.id ?? "";
+
+  const roomId = room.id;
+  const orgId = user?.organisationId ?? "";
 
   const loadMessages = useCallback(async () => {
     setLoading(true);
@@ -64,8 +67,8 @@ export function ChatScreen() {
       const { data } = await supabase
         .from("chat_messages")
         .select("id, sender_id, sender_name, content, created_at")
-        .eq("room_id", room.id)
-        .eq("organisation_id", user?.organisationId ?? "")
+        .eq("room_id", roomId)
+        .eq("organisation_id", orgId)
         .order("created_at", { ascending: true })
         .limit(60);
       if (data) setMessages(data as Message[]);
@@ -76,7 +79,7 @@ export function ChatScreen() {
       setLoading(false);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
     }
-  }, [room, user]);
+  }, [roomId, orgId]);
 
   // Realtime subscription
   useEffect(() => {
@@ -86,15 +89,15 @@ export function ChatScreen() {
     // We filter by room_id server-side, and apply organisation_id filtering client-side
     // to prevent cross-organisation leaks while retaining valid filter syntax.
     const ch = supabase
-      .channel(`chat:${room.id}:${user?.organisationId}`)
+      .channel(`chat:${roomId}:${orgId}`)
       .on("postgres_changes", {
         event: "INSERT", schema: "public", table: "chat_messages",
-        filter: `room_id=eq.${room.id}`,
+        filter: `room_id=eq.${roomId}`,
       }, (payload) => {
         const newMsg = payload.new as Message & { organisation_id?: string; room_id?: string };
         
         // Data leakage guard: ignore messages from other orgs
-        if (newMsg.organisation_id && newMsg.organisation_id !== user?.organisationId) {
+        if (newMsg.organisation_id && newMsg.organisation_id !== orgId) {
           return;
         }
 
@@ -117,7 +120,7 @@ export function ChatScreen() {
       .subscribe();
     channelRef.current = ch;
     return () => { ch.unsubscribe(); };
-  }, [loadMessages, room.id, user?.organisationId, myId]);
+  }, [loadMessages, roomId, orgId, myId]);
 
   const sendMessage = async () => {
     const content = text.trim();
